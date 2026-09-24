@@ -1,18 +1,4 @@
-const EARTH_RADIUS_KM = 6371;
-const ROAD_FACTOR = 1.3; // same straight-line-to-road factor the design uses for walk time
-
-function toRad(deg) {
-  return (deg * Math.PI) / 180;
-}
-
-function haversineKm(a, b) {
-  const dLat = toRad(b.centerLat - a.centerLat);
-  const dLng = toRad(b.centerLng - a.centerLng);
-  const lat1 = toRad(a.centerLat);
-  const lat2 = toRad(b.centerLat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
-}
+import { haversineKm, ROAD_FACTOR } from '../../lib/geo.js';
 
 function roundToHalf(km) {
   return Math.round(km * 2) / 2;
@@ -44,7 +30,8 @@ export function buildZoneDistances(zones) {
       const a = zones[i];
       const b = zones[j];
       const key = pairKey(a.name, b.name);
-      const km = FIXED_KM.get(key) ?? roundToHalf(haversineKm(a, b) * ROAD_FACTOR);
+      const straightLineKm = haversineKm(a.centerLat, a.centerLng, b.centerLat, b.centerLng);
+      const km = FIXED_KM.get(key) ?? roundToHalf(straightLineKm * ROAD_FACTOR);
       pairs.push({ fromName: a.name, toName: b.name, km });
     }
   }

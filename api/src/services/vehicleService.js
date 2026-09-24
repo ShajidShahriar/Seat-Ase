@@ -1,7 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { vehicles, zones } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
+
+const STALE_AFTER_MINUTES = 5;
 
 export async function getVehicleByDriver(driverId) {
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
@@ -26,7 +28,7 @@ export async function goOnline(driverId, zoneId) {
 
   const [updated] = await db
     .update(vehicles)
-    .set({ isOnline: true, currentZoneId: zoneId })
+    .set({ isOnline: true, currentZoneId: zoneId, lastSeenAt: new Date() })
     .where(eq(vehicles.driverId, driverId))
     .returning();
   return updated;
@@ -42,4 +44,13 @@ export async function goOffline(driverId) {
     throw new AppError(409, 'NO_VEHICLE', 'You have no vehicle to go offline.');
   }
   return updated;
+}
+
+export async function onlineCountInZone(zoneId) {
+  const staleCutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60 * 1000);
+  const rows = await db
+    .select({ id: vehicles.id })
+    .from(vehicles)
+    .where(and(eq(vehicles.currentZoneId, zoneId), eq(vehicles.isOnline, true), gt(vehicles.lastSeenAt, staleCutoff)));
+  return rows.length;
 }

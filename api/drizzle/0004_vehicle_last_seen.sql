@@ -1,0 +1,1 @@
+ALTER TABLE "vehicles" ADD COLUMN "last_seen_at" timestamp with time zone;
