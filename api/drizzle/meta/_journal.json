@@ -8,6 +8,13 @@
       "when": 1790265729803,
       "tag": "0000_zones_and_places",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790266814943,
+      "tag": "0001_users",
+      "breakpoints": true
     }
   ]
 }

@@ -10,8 +10,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.45.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
     "winston": "^3.19.0",
     "zod": "^4.6.5"
