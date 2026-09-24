@@ -36,6 +36,13 @@
       "when": 1790270163148,
       "tag": "0004_vehicle_last_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790271464111,
+      "tag": "0005_rides_and_requests",
+      "breakpoints": true
     }
   ]
 }
