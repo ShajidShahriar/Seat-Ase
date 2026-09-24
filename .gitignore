@@ -1,0 +1,26 @@
+# secrets: only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+dist/
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# markdown: only README.md is committed (devlog.md and notes stay local)
+*.md
+!README.md
