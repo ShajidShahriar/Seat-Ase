@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
-import { signupSchema, loginSchema } from '@seat-ase/shared';
+import { signupSchema, loginSchema, verifyOtpSchema } from '@seat-ase/shared';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import * as authController from '../controllers/authController.js';
+import * as otpController from '../controllers/otpController.js';
 
 export const authRoutes = Router();
 
@@ -20,3 +21,6 @@ authRoutes.post('/signup', authLimiter, validate({ body: signupSchema }), authCo
 authRoutes.post('/login', authLimiter, validate({ body: loginSchema }), authController.login);
 authRoutes.post('/logout', authController.logout);
 authRoutes.get('/me', requireAuth, authController.me);
+
+authRoutes.post('/otp/send', requireAuth, otpController.send);
+authRoutes.post('/otp/verify', requireAuth, validate({ body: verifyOtpSchema }), otpController.verify);

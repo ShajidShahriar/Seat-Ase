@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { db } from '../client.js';
 import { pool } from '../pool.js';
 import { zones, zoneDistances, places } from '../schema.js';
@@ -73,7 +74,9 @@ async function main() {
   await pool.end();
 }
 
-main().catch((err) => {
-  logger.error('seed:dhaka failed', { error: err.message });
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    logger.error('seed:dhaka failed', { error: err.message });
+    process.exit(1);
+  });
+}

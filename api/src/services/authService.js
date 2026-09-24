@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { signAuthToken } from '../lib/jwt.js';
+import { hashNid, last4 } from '../lib/nid.js';
 
 const BCRYPT_COST = 10;
 
@@ -12,9 +13,21 @@ const BCRYPT_COST = 10;
 // would reveal which phone numbers are registered.
 const DUMMY_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8i6ycESYYK5AV6VpKh.QjXsF9c1s2y';
 
-export async function signup({ name, phone, password, role }) {
+export async function signup({ name, phone, password, role, gender, nid }) {
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-  const [user] = await db.insert(users).values({ name, phone, passwordHash, role }).returning();
+  const [user] = await db
+    .insert(users)
+    .values({
+      name,
+      phone,
+      passwordHash,
+      role,
+      gender,
+      nidHash: hashNid(nid),
+      nidLast4: last4(nid),
+      nidVerifiedAt: new Date(),
+    })
+    .returning();
   return { user, token: signAuthToken(user) };
 }
 
