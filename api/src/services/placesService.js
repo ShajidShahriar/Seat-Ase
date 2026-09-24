@@ -1,6 +1,6 @@
-import { eq, ilike } from 'drizzle-orm';
+import { and, eq, ilike } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { places, zones } from '../db/schema.js';
+import { places, zones, zoneDistances } from '../db/schema.js';
 import { haversineKm, walkMinutes } from '../lib/geo.js';
 import { AppError } from '../lib/AppError.js';
 
@@ -63,6 +63,18 @@ export async function assertWithinServiceArea(lat, lng) {
     throw new AppError(400, 'OUTSIDE_SERVICE_AREA', 'That location is outside our service area.');
   }
   return nearest;
+}
+
+export async function getZoneDistanceKm(fromZoneId, toZoneId) {
+  if (fromZoneId === toZoneId) return 0;
+  const [row] = await db
+    .select({ distanceKm: zoneDistances.distanceKm })
+    .from(zoneDistances)
+    .where(and(eq(zoneDistances.fromZoneId, fromZoneId), eq(zoneDistances.toZoneId, toZoneId)));
+  if (!row) {
+    throw new AppError(400, 'ZONE_PAIR_NOT_FOUND', 'No distance is known between those zones.');
+  }
+  return row.distanceKm;
 }
 
 export async function nearestStandWithWalk(lat, lng) {

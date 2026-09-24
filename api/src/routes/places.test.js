@@ -134,3 +134,21 @@ describe('GET /zones/:zoneId/online-count', () => {
   });
 });
 
+describe('POST /fares/estimate', () => {
+  it('matches Nusrat’s pooled and solo fares for Banani -> Mohakhali', async () => {
+    const agent = await signedInAgent(nusrat);
+    const res = await agent.post('/fares/estimate').send({ pickupZoneId: bananiZoneId, dropZoneId: mohakhaliZoneId, seats: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.distanceKm).toBe(3);
+    expect(res.body.soloPoysha).toBe(11500);
+    expect(res.body.pooledPoysha).toBe(9625);
+    expect(res.body.privatePoysha).toBe(34500);
+  });
+
+  it('treats the same pickup and drop zone as 0km', async () => {
+    const agent = await signedInAgent(nusrat);
+    const res = await agent.post('/fares/estimate').send({ pickupZoneId: bananiZoneId, dropZoneId: bananiZoneId, seats: 1 });
+    expect(res.body.distanceKm).toBe(0);
+    expect(res.body.soloPoysha).toBe(4000);
+  });
+});
