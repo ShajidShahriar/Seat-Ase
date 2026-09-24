@@ -3,8 +3,9 @@ import * as authService from '../services/authService.js';
 
 export async function create(req, res) {
   const passenger = await authService.findUserById(req.user.id);
-  const { request } = await rideRequestService.createRequest(passenger, req.valid.body);
-  res.status(201).json({ request });
+  const idempotencyKey = req.header('Idempotency-Key');
+  const { request, replay } = await rideRequestService.createRequest(passenger, req.valid.body, idempotencyKey);
+  res.status(replay ? 200 : 201).json({ request });
 }
 
 export async function list(req, res) {

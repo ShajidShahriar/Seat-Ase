@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { rideRequests } from '../db/schema.js';
@@ -27,7 +26,24 @@ async function resolvePickup(rideType, lat, lng) {
   return { pickupStandId: nearest.stand.id, pickupZoneId: nearest.zone.id, pickupLat: null, pickupLng: null };
 }
 
-export async function createRequest(passenger, body) {
+export async function createRequest(passenger, body, idempotencyKey) {
+  if (!idempotencyKey) {
+    throw new AppError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'The Idempotency-Key header is required.');
+  }
+
+  const bodyHash = hashBody(body);
+  const [existing] = await db
+    .select()
+    .from(rideRequests)
+    .where(and(eq(rideRequests.passengerId, passenger.id), eq(rideRequests.idempotencyKey, idempotencyKey)));
+
+  if (existing) {
+    if (existing.bodyHash !== bodyHash) {
+      throw new AppError(422, 'IDEMPOTENCY_KEY_REUSED', 'This Idempotency-Key was already used with a different request.');
+    }
+    return { request: existing, replay: true };
+  }
+
   if (body.womenOnly && passenger.gender !== 'FEMALE') {
     throw new AppError(403, 'WOMEN_ONLY_REQUIRES_FEMALE', 'Only female passengers can request a women-only ride.');
   }
@@ -55,8 +71,8 @@ export async function createRequest(passenger, body) {
       pickupLng: pickup.pickupLng,
       pickupZoneId: pickup.pickupZoneId,
       dropZoneId: dropZone.id,
-      idempotencyKey: randomUUID(),
-      bodyHash: hashBody(body),
+      idempotencyKey,
+      bodyHash,
     })
     .returning();
 

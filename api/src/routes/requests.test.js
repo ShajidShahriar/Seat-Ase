@@ -66,6 +66,13 @@ describe('POST /requests', () => {
     expect(res.body.error.code).toBe('PHONE_NOT_VERIFIED');
   });
 
+  it('requires an Idempotency-Key header', async () => {
+    const agent = await verifiedAgent(nusrat);
+    const res = await agent.post('/requests').send(nusratToMohakhaliBody());
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+  });
+
   it('creates a booking with the nearest stand for a shared ride', async () => {
     const agent = await verifiedAgent(nusrat);
     const res = await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody());
@@ -84,6 +91,23 @@ describe('POST /requests', () => {
     expect(res.status).toBe(201);
     expect(res.body.request.pickupStandId).toBeNull();
     expect(res.body.request.pickupLat).toBe(23.794);
+  });
+
+  it('replays the same booking for the same key and identical body', async () => {
+    const agent = await verifiedAgent(nusrat);
+    const first = await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody());
+    const second = await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody());
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(200);
+    expect(second.body.request.id).toBe(first.body.request.id);
+  });
+
+  it('rejects the same key reused with a different body', async () => {
+    const agent = await verifiedAgent(nusrat);
+    await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody());
+    const res = await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody({ seats: 2 }));
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('IDEMPOTENCY_KEY_REUSED');
   });
 
   it('rejects a second active booking even with a fresh idempotency key', async () => {
