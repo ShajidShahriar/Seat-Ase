@@ -4,6 +4,7 @@ import { authRoutes } from './auth.js';
 import { driverRoutes } from './driver.js';
 import { placesRoutes } from './places.js';
 import { fareRoutes } from './fares.js';
+import { requestRoutes } from './requests.js';
 
 // Maps URLs to controllers. No logic lives here.
 export const routes = Router();
@@ -13,3 +14,4 @@ routes.use('/auth', authRoutes);
 routes.use('/driver', driverRoutes);
 routes.use(placesRoutes);
 routes.use(fareRoutes);
+routes.use(requestRoutes);

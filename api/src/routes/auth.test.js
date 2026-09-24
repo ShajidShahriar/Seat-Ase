@@ -4,7 +4,7 @@ import express from 'express';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles } from '../db/schema.js';
+import { users, vehicles, rideEvents, rideRequests } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createAuthLimiter } from './auth.js';
 import { validate } from '../middleware/validate.js';
@@ -23,6 +23,8 @@ const jashim = {
 };
 
 beforeEach(async () => {
+  await db.delete(rideEvents);
+  await db.delete(rideRequests);
   await db.delete(vehicles);
   await db.delete(users);
 });

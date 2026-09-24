@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../client.js';
-import { users, vehicles } from '../schema.js';
+import { users, vehicles, rideEvents, rideRequests } from '../schema.js';
 import { PASSENGERS } from './cast.js';
 import { seedPassengers } from './passengers.js';
 
@@ -10,6 +10,8 @@ describe('passenger seed data', () => {
   // (auth, driver, otp) each wipe `users` in their own beforeEach, so this file
   // can't rely on any seed script having run earlier in the same test session.
   beforeAll(async () => {
+    await db.delete(rideEvents);
+    await db.delete(rideRequests);
     await db.delete(vehicles);
     await db.delete(users);
     await seedPassengers();
