@@ -3,13 +3,14 @@ import request from 'supertest';
 import express from 'express';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users } from '../db/schema.js';
+import { users, vehicles } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import cookieParser from 'cookie-parser';
 
 const jashim = { name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER' };
 
 beforeEach(async () => {
+  await db.delete(vehicles);
   await db.delete(users);
 });
 

@@ -1,4 +1,16 @@
-import { pgTable, uuid, text, doublePrecision, pgEnum, primaryKey, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  doublePrecision,
+  pgEnum,
+  primaryKey,
+  timestamp,
+  smallint,
+  boolean,
+  check,
+} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const placeKind = pgEnum('place_kind', ['STAND', 'LANDMARK']);
 export const userRole = pgEnum('user_role', ['PASSENGER', 'DRIVER']);
@@ -47,3 +59,21 @@ export const places = pgTable('places', {
     .notNull()
     .references(() => zones.id),
 });
+
+// --- vehicles ---
+export const vehicles = pgTable(
+  'vehicles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    driverId: uuid('driver_id')
+      .notNull()
+      .unique()
+      .references(() => users.id),
+    name: text('name').notNull(),
+    registrationNo: text('registration_no').notNull().unique(),
+    capacity: smallint('capacity').notNull(),
+    isOnline: boolean('is_online').notNull().default(false),
+    currentZoneId: uuid('current_zone_id').references(() => zones.id),
+  },
+  (table) => [check('vehicles_capacity_check', sql`${table.capacity} BETWEEN 1 AND 6`)],
+);
