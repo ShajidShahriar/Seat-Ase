@@ -9,7 +9,7 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(4000),
     DATABASE_URL: z.string().startsWith('postgres', 'DATABASE_URL must be a postgres:// URL'),
     JWT_SECRET: z.string().optional(),
-    LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
+    LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('http'),
   })
   .superRefine((env, ctx) => {
     // Red-team #38: a missing or guessable secret lets anyone forge a login as Jashim.
