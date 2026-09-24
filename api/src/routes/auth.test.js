@@ -7,7 +7,14 @@ import { users, vehicles } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import cookieParser from 'cookie-parser';
 
-const jashim = { name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER' };
+const jashim = {
+  name: 'Jashim',
+  phone: '01700000010',
+  password: 'password123',
+  role: 'DRIVER',
+  gender: 'MALE',
+  nid: '1234567890',
+};
 
 beforeEach(async () => {
   await db.delete(vehicles);

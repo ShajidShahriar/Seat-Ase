@@ -8,12 +8,14 @@ import {
   timestamp,
   smallint,
   boolean,
+  integer,
   check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const placeKind = pgEnum('place_kind', ['STAND', 'LANDMARK']);
 export const userRole = pgEnum('user_role', ['PASSENGER', 'DRIVER']);
+export const userGender = pgEnum('user_gender', ['FEMALE', 'MALE', 'UNDISCLOSED']);
 
 // --- users ---
 export const users = pgTable('users', {
@@ -22,6 +24,21 @@ export const users = pgTable('users', {
   phone: text('phone').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: userRole('role').notNull(),
+  gender: userGender('gender').notNull().default('UNDISCLOSED'),
+  phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
+  nidHash: text('nid_hash').unique(),
+  nidLast4: text('nid_last4'),
+  nidVerifiedAt: timestamp('nid_verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- otp_codes ---
+export const otpCodes = pgTable('otp_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  phone: text('phone').notNull(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  attempts: integer('attempts').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

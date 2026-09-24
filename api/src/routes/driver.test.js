@@ -4,8 +4,22 @@ import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, zones } from '../db/schema.js';
 
-const jashim = { name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER' };
-const nusrat = { name: 'Nusrat', phone: '01700000030', password: 'password123', role: 'PASSENGER' };
+const jashim = {
+  name: 'Jashim',
+  phone: '01700000010',
+  password: 'password123',
+  role: 'DRIVER',
+  gender: 'MALE',
+  nid: '1234567890',
+};
+const nusrat = {
+  name: 'Nusrat',
+  phone: '01700000030',
+  password: 'password123',
+  role: 'PASSENGER',
+  gender: 'FEMALE',
+  nid: '1234567891',
+};
 const bullet = { name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 };
 
 async function signedInAgent(user) {
@@ -45,7 +59,7 @@ describe('POST /driver/vehicle', () => {
     const jashimAgent = await signedInAgent(jashim);
     await jashimAgent.post('/driver/vehicle').send(bullet);
 
-    const mokbulAgent = await signedInAgent({ ...jashim, name: 'Mokbul', phone: '01700000011' });
+    const mokbulAgent = await signedInAgent({ ...jashim, name: 'Mokbul', phone: '01700000011', nid: '1234567892' });
     const res = await mokbulAgent.post('/driver/vehicle').send(bullet);
     expect(res.status).toBe(409);
   });

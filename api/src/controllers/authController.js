@@ -2,7 +2,13 @@ import * as authService from '../services/authService.js';
 import { setAuthCookie, clearAuthCookie } from '../lib/cookies.js';
 
 function toPublicUser(user) {
-  return { id: user.id, name: user.name, phone: user.phone, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone,
+    role: user.role,
+    phoneVerified: Boolean(user.phoneVerifiedAt),
+  };
 }
 
 export async function signup(req, res) {
