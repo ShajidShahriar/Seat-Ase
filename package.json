@@ -1,0 +1,16 @@
+{
+  "name": "seat-ase",
+  "private": true,
+  "description": "Seat Ase? — a Dhaka Tesla Pool MVP",
+  "workspaces": [
+    "api",
+    "shared"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "npm run dev -w api",
+    "test": "npm test -w api"
+  }
+}

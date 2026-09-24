@@ -1,0 +1,18 @@
+{
+  "name": "@seat-ase/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../.env --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "pg": "^8.23.0",
+    "winston": "^3.19.0",
+    "zod": "^4.6.5"
+  }
+}
