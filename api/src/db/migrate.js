@@ -13,7 +13,9 @@ async function main() {
   await pool.end();
 }
 
-main().catch((err) => {
-  logger.error('migration failed', { error: err.message });
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    logger.error('migration failed', { error: err.message });
+    process.exit(1);
+  });
+}

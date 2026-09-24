@@ -3,6 +3,33 @@
 
 export const DEFAULT_PASSWORD = 'password123';
 
+export const PASSENGERS = [
+  {
+    name: 'Nusrat',
+    phone: '01700000030',
+    password: DEFAULT_PASSWORD,
+    gender: 'FEMALE',
+    nid: '1234567890',
+    trip: { pickupZone: 'Banani', dropZone: 'Mohakhali', seats: 1 },
+  },
+  {
+    name: 'Rafiq',
+    phone: '01700000031',
+    password: DEFAULT_PASSWORD,
+    gender: 'MALE',
+    nid: '1234567891',
+    trip: { pickupZone: 'Banani', dropZone: 'Gulshan 1', seats: 1 },
+  },
+  {
+    name: 'Shirin',
+    phone: '01700000032',
+    password: DEFAULT_PASSWORD,
+    gender: 'FEMALE',
+    nid: '1234567892',
+    trip: { pickupZone: 'Banani', dropZone: 'Mohakhali', seats: 1, womenOnly: true },
+  },
+];
+
 export const DRIVERS = [
   {
     name: 'Jashim',

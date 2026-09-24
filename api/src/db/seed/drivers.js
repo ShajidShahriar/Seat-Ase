@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import { normalizePhone } from '@seat-ase/shared';
@@ -42,7 +43,9 @@ async function main() {
   await pool.end();
 }
 
-main().catch((err) => {
-  logger.error('seed:drivers failed', { error: err.message });
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    logger.error('seed:drivers failed', { error: err.message });
+    process.exit(1);
+  });
+}
