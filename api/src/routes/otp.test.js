@@ -3,7 +3,7 @@ import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, otpCodes, rideEvents, rideRequests } from '../db/schema.js';
+import { users, vehicles, otpCodes, rideEvents, rideRequests, rides } from '../db/schema.js';
 
 const nusrat = {
   name: 'Nusrat',
@@ -23,6 +23,7 @@ async function signedInAgent(user) {
 beforeEach(async () => {
   await db.delete(rideEvents);
   await db.delete(rideRequests);
+  await db.delete(rides);
   await db.delete(otpCodes);
   await db.delete(vehicles);
   await db.delete(users);

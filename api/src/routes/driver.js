@@ -3,6 +3,7 @@ import { addVehicleSchema, goOnlineSchema } from '@seat-ase/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import * as vehicleController from '../controllers/vehicleController.js';
+import * as driverRideController from '../controllers/driverRideController.js';
 
 export const driverRoutes = Router();
 
@@ -12,3 +13,7 @@ driverRoutes.post('/vehicle', validate({ body: addVehicleSchema }), vehicleContr
 driverRoutes.get('/vehicle', vehicleController.getVehicle);
 driverRoutes.post('/online', validate({ body: goOnlineSchema }), vehicleController.goOnline);
 driverRoutes.post('/offline', vehicleController.goOffline);
+
+driverRoutes.get('/requests', driverRideController.listRequests);
+driverRoutes.post('/ride/requests/:id/accept', driverRideController.accept);
+driverRoutes.post('/ride/cancel', driverRideController.cancelRide);
