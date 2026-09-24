@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles } from '../db/schema.js';
+import { users, vehicles, zones } from '../db/schema.js';
 
 const jashim = { name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER' };
 const nusrat = { name: 'Nusrat', phone: '01700000030', password: 'password123', role: 'PASSENGER' };
@@ -54,6 +54,45 @@ describe('POST /driver/vehicle', () => {
     const agent = await signedInAgent(jashim);
     const res = await agent.post('/driver/vehicle').send({ ...bullet, capacity });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('online / offline', () => {
+  it('refuses to go online with no vehicle', async () => {
+    const agent = await signedInAgent(jashim);
+    const zone = await db.select().from(zones).limit(1).then((rows) => rows[0]);
+    const res = await agent.post('/driver/online').send({ zoneId: zone.id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NO_VEHICLE');
+  });
+
+  it('goes online with a vehicle and a real zone', async () => {
+    const agent = await signedInAgent(jashim);
+    await agent.post('/driver/vehicle').send(bullet);
+    const zone = await db.select().from(zones).limit(1).then((rows) => rows[0]);
+
+    const res = await agent.post('/driver/online').send({ zoneId: zone.id });
+    expect(res.status).toBe(200);
+    expect(res.body.vehicle.isOnline).toBe(true);
+    expect(res.body.vehicle.currentZoneId).toBe(zone.id);
+  });
+
+  it('rejects a zone id that does not exist', async () => {
+    const agent = await signedInAgent(jashim);
+    await agent.post('/driver/vehicle').send(bullet);
+    const res = await agent.post('/driver/online').send({ zoneId: '00000000-0000-0000-0000-000000000000' });
+    expect(res.status).toBe(400);
+  });
+
+  it('goes offline', async () => {
+    const agent = await signedInAgent(jashim);
+    await agent.post('/driver/vehicle').send(bullet);
+    const zone = await db.select().from(zones).limit(1).then((rows) => rows[0]);
+    await agent.post('/driver/online').send({ zoneId: zone.id });
+
+    const res = await agent.post('/driver/offline');
+    expect(res.status).toBe(200);
+    expect(res.body.vehicle.isOnline).toBe(false);
   });
 });
 

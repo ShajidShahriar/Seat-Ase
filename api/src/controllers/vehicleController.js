@@ -17,3 +17,13 @@ export async function getVehicle(req, res) {
   }
   res.json({ vehicle });
 }
+
+export async function goOnline(req, res) {
+  const vehicle = await vehicleService.goOnline(req.user.id, req.valid.body.zoneId);
+  res.json({ vehicle });
+}
+
+export async function goOffline(req, res) {
+  const vehicle = await vehicleService.goOffline(req.user.id);
+  res.json({ vehicle });
+}

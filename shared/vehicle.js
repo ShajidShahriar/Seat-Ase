@@ -5,3 +5,7 @@ export const addVehicleSchema = z.object({
   registrationNo: z.string().trim().min(1).max(30),
   capacity: z.number().int().min(1).max(6),
 });
+
+export const goOnlineSchema = z.object({
+  zoneId: z.string().uuid(),
+});
