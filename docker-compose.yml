@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: seatase
+      POSTGRES_PASSWORD: seatase
+      POSTGRES_DB: seatase
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready answers "accepting connections?" — api will wait for this before starting
+      test: ["CMD-SHELL", "pg_isready -U seatase -d seatase"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata: # named volume: Jashim, Nusrat & co. survive `docker compose down`/`up`
