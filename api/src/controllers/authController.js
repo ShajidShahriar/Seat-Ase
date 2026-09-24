@@ -7,7 +7,9 @@ function toPublicUser(user) {
     name: user.name,
     phone: user.phone,
     role: user.role,
+    gender: user.gender,
     phoneVerified: Boolean(user.phoneVerifiedAt),
+    nidVerified: Boolean(user.nidVerifiedAt),
   };
 }
 
