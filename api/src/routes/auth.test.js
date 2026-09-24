@@ -6,6 +6,11 @@ import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { createAuthLimiter } from './auth.js';
+import { validate } from '../middleware/validate.js';
+import { errorHandler } from '../middleware/errorHandler.js';
+import { loginSchema } from '@seat-ase/shared';
+import * as authController from '../controllers/authController.js';
 import cookieParser from 'cookie-parser';
 
 const jashim = {
@@ -155,5 +160,41 @@ describe('requireRole', () => {
 
     const res = await request(appWithDriverOnlyRoute()).get('/driver-only').set('Cookie', cookie);
     expect(res.status).toBe(200);
+  });
+});
+
+describe('rate limiting', () => {
+  function appWithRealLimiter(limit) {
+    const testApp = express();
+    testApp.use(express.json());
+    testApp.use(cookieParser());
+    testApp.post('/login', createAuthLimiter(limit), validate({ body: loginSchema }), authController.login);
+    testApp.use(errorHandler);
+    return testApp;
+  }
+
+  it('allows exactly the configured number of attempts, then blocks the rest', async () => {
+    const testApp = appWithRealLimiter(5);
+    const attempts = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' }),
+      ),
+    );
+    const counts = attempts.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(counts[401]).toBe(5);
+    expect(counts[429]).toBe(3);
+  });
+
+  it('keys by phone, so a different phone is unaffected', async () => {
+    const testApp = appWithRealLimiter(1);
+    await request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' });
+    const blocked = await request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' });
+    const otherPhone = await request(testApp).post('/login').send({ phone: '01788888888', password: 'wrongpass' });
+
+    expect(blocked.status).toBe(429);
+    expect(otherPhone.status).toBe(401);
   });
 });

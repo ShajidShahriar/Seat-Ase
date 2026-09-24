@@ -91,6 +91,7 @@ export const vehicles = pgTable(
     capacity: smallint('capacity').notNull(),
     isOnline: boolean('is_online').notNull().default(false),
     currentZoneId: uuid('current_zone_id').references(() => zones.id),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   },
   (table) => [check('vehicles_capacity_check', sql`${table.capacity} BETWEEN 1 AND 6`)],
 );
