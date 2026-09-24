@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
+import express from 'express';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import cookieParser from 'cookie-parser';
 
 const jashim = { name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER' };
 
@@ -76,5 +79,34 @@ describe('POST /auth/logout', () => {
     await agent.post('/auth/logout');
     const res = await agent.get('/auth/me');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('requireRole', () => {
+  // A tiny standalone app, not the shared `app` — mounting a route on `app` after this
+  // file's earlier tests import it would land after notFound/errorHandler and 404 instead.
+  function appWithDriverOnlyRoute() {
+    const testApp = express();
+    testApp.use(cookieParser());
+    testApp.get('/driver-only', requireAuth, requireRole('DRIVER'), (req, res) => res.json({ ok: true }));
+    return testApp;
+  }
+
+  it('blocks a passenger from a driver-only route', async () => {
+    const agent = request.agent(app);
+    await agent.post('/auth/signup').send({ ...jashim, role: 'PASSENGER', phone: '01722222222' });
+    const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
+
+    const res = await request(appWithDriverOnlyRoute()).get('/driver-only').set('Cookie', cookie);
+    expect(res.status).toBe(403);
+  });
+
+  it('lets a driver through', async () => {
+    const agent = request.agent(app);
+    await agent.post('/auth/signup').send({ ...jashim, phone: '01733333333' });
+    const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
+
+    const res = await request(appWithDriverOnlyRoute()).get('/driver-only').set('Cookie', cookie);
+    expect(res.status).toBe(200);
   });
 });

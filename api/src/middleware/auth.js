@@ -17,3 +17,12 @@ export function requireAuth(req, res, next) {
   setAuthCookie(res, signAuthToken({ id: payload.sub, role: payload.role }));
   next();
 }
+
+export function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user?.role !== role) {
+      return next(new AppError(403, 'FORBIDDEN', `Only a ${role.toLowerCase()} can do that.`));
+    }
+    next();
+  };
+}
