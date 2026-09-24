@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { rideRequests } from '../db/schema.js';
+import { rideRequests, rides } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
@@ -99,23 +99,63 @@ export async function getOwnRequest(id, passengerId) {
 }
 
 export async function cancelRequest(id, passengerId) {
-  const [existing] = await db
-    .select()
-    .from(rideRequests)
-    .where(and(eq(rideRequests.id, id), eq(rideRequests.passengerId, passengerId)));
-  if (!existing) {
-    throw new AppError(404, 'NOT_FOUND', 'No booking found with that id.');
-  }
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(rideRequests)
+      .where(and(eq(rideRequests.id, id), eq(rideRequests.passengerId, passengerId)));
+    if (!existing) {
+      throw new AppError(404, 'NOT_FOUND', 'No booking found with that id.');
+    }
 
-  const [updated] = await db
-    .update(rideRequests)
-    .set({ status: 'CANCELLED' })
-    .where(and(eq(rideRequests.id, id), eq(rideRequests.status, 'REQUESTED')))
-    .returning();
-  if (!updated) {
+    if (existing.status === 'REQUESTED') {
+      const [updated] = await tx
+        .update(rideRequests)
+        .set({ status: 'CANCELLED' })
+        .where(and(eq(rideRequests.id, id), eq(rideRequests.status, 'REQUESTED')))
+        .returning();
+      if (!updated) {
+        throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
+      }
+      await recordEvent(
+        { requestId: id, actorId: passengerId, type: 'CANCELLED', fromStatus: 'REQUESTED', toStatus: 'CANCELLED' },
+        tx,
+      );
+      return updated;
+    }
+
+    if (existing.status === 'MATCHED') {
+      const [ride] = await tx.select().from(rides).where(eq(rides.id, existing.rideId)).for('update');
+
+      const [updated] = await tx
+        .update(rideRequests)
+        .set({ status: 'CANCELLED' })
+        .where(and(eq(rideRequests.id, id), eq(rideRequests.status, 'MATCHED')))
+        .returning();
+      if (!updated) {
+        throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
+      }
+
+      const newSeatsTaken = ride.seatsTaken - existing.seats;
+      const emptiedOut = newSeatsTaken <= 0;
+      await tx
+        .update(rides)
+        .set({ seatsTaken: newSeatsTaken, status: emptiedOut ? 'CANCELLED' : ride.status })
+        .where(eq(rides.id, ride.id));
+
+      await recordEvent(
+        { rideId: ride.id, requestId: id, actorId: passengerId, type: 'CANCELLED', fromStatus: 'MATCHED', toStatus: 'CANCELLED' },
+        tx,
+      );
+      if (emptiedOut) {
+        await recordEvent(
+          { rideId: ride.id, actorId: null, type: 'RIDE_AUTO_CANCELLED', fromStatus: ride.status, toStatus: 'CANCELLED' },
+          tx,
+        );
+      }
+      return updated;
+    }
+
     throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
-  }
-
-  await recordEvent({ requestId: id, actorId: passengerId, type: 'CANCELLED', fromStatus: 'REQUESTED', toStatus: 'CANCELLED' });
-  return updated;
+  });
 }

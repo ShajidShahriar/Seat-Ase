@@ -4,7 +4,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, rideEvents, rideRequests } from '../db/schema.js';
+import { users, vehicles, rideEvents, rideRequests, rides } from '../db/schema.js';
 import { requireAuth } from './auth.js';
 import { requireVerified } from './requireVerified.js';
 import { errorHandler } from './errorHandler.js';
@@ -29,6 +29,7 @@ function verifiedOnlyApp() {
 beforeEach(async () => {
   await db.delete(rideEvents);
   await db.delete(rideRequests);
+  await db.delete(rides);
   await db.delete(vehicles);
   await db.delete(users);
 });

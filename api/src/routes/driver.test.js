@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, zones, rideEvents, rideRequests } from '../db/schema.js';
+import { users, vehicles, zones, rideEvents, rideRequests, rides } from '../db/schema.js';
 
 const jashim = {
   name: 'Jashim',
@@ -31,6 +31,7 @@ async function signedInAgent(user) {
 beforeEach(async () => {
   await db.delete(rideEvents);
   await db.delete(rideRequests);
+  await db.delete(rides);
   await db.delete(vehicles);
   await db.delete(users);
 });

@@ -3,7 +3,7 @@ import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, otpCodes, rideRequests, rideEvents, places } from '../db/schema.js';
+import { users, vehicles, otpCodes, rideRequests, rideEvents, rides, places } from '../db/schema.js';
 
 const nusrat = {
   name: 'Nusrat',
@@ -32,6 +32,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.delete(rideEvents);
   await db.delete(rideRequests);
+  await db.delete(rides);
   await db.delete(vehicles);
   await db.delete(otpCodes);
   await db.delete(users);

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../client.js';
-import { users, vehicles, rideEvents, rideRequests } from '../schema.js';
+import { users, vehicles, rideEvents, rideRequests, rides } from '../schema.js';
 import { PASSENGERS } from './cast.js';
 import { seedPassengers } from './passengers.js';
 
@@ -12,6 +12,7 @@ describe('passenger seed data', () => {
   beforeAll(async () => {
     await db.delete(rideEvents);
     await db.delete(rideRequests);
+    await db.delete(rides);
     await db.delete(vehicles);
     await db.delete(users);
     await seedPassengers();
