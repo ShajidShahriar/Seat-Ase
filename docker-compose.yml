@@ -16,5 +16,23 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: http
+      DATABASE_URL: postgres://seatase:seatase@db:5432/seatase
+      JWT_SECRET: ${JWT_SECRET:-local-docker-only-secret-never-use-online}
+      COOKIE_SECURE: "false"
+      SSE_HEARTBEAT_MS: 25000
+    ports:
+      - "4000:4000"
+
 volumes:
   pgdata: # named volume: Jashim, Nusrat & co. survive `docker compose down`/`up`
