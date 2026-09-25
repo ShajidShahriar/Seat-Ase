@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { rides, rideRequests, vehicles, users, zones } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
@@ -7,10 +7,11 @@ import { checkFit } from './matchService.js';
 import { getZoneDistanceKm } from './placesService.js';
 import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha } from './fareService.js';
 import { recordEvent } from './rideEventService.js';
-import { ACTIVE_BOOKING_STATUSES, expireStaleRequests } from './rideRequestService.js';
+import { ACTIVE_BOOKING_STATUSES, expireStaleRequests, autoCloseStaleRides } from './rideRequestService.js';
 
 const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
 const REQUEST_EXPIRY_MINUTES = 15;
+const NO_SHOW_WAIT_MINUTES = 5;
 
 async function activeBookingsForRide(tx, rideId, excludingId) {
   const rows = await tx
@@ -299,4 +300,278 @@ export async function cancelRide(driverId) {
     const [cancelled] = await tx.update(rides).set({ status: 'CANCELLED' }).where(eq(rides.id, ride.id)).returning();
     return cancelled;
   });
+}
+
+async function getOwnedActiveRide(tx, driverId, allowedStatuses) {
+  const [vehicle] = await tx.select().from(vehicles).where(eq(vehicles.driverId, driverId));
+  if (!vehicle) {
+    throw new AppError(404, 'NOT_FOUND', 'No vehicle found.');
+  }
+  const [ride] = await tx
+    .select()
+    .from(rides)
+    .where(and(eq(rides.vehicleId, vehicle.id), inArray(rides.status, allowedStatuses)))
+    .for('update');
+  if (!ride) {
+    throw new AppError(404, 'NOT_FOUND', 'No ride found in that state.');
+  }
+  return ride;
+}
+
+export async function arriveRide(driverId) {
+  return db.transaction(async (tx) => {
+    const ride = await getOwnedActiveRide(tx, driverId, ['OPEN']);
+
+    const active = await activeBookingsForRide(tx, ride.id);
+    if (active.length === 0) {
+      throw new AppError(409, 'RIDE_EMPTY', 'Nobody is booked into this ride yet.');
+    }
+
+    const [updatedRide] = await tx
+      .update(rides)
+      .set({ status: 'ARRIVED', arrivedAt: new Date() })
+      .where(eq(rides.id, ride.id))
+      .returning();
+
+    await tx
+      .update(rideRequests)
+      .set({ status: 'DRIVER_ARRIVED' })
+      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'MATCHED')));
+
+    await recordEvent(
+      { rideId: ride.id, actorId: driverId, type: 'ARRIVED', fromStatus: 'OPEN', toStatus: 'ARRIVED' },
+      tx,
+    );
+    return updatedRide;
+  });
+}
+
+export async function boardPassenger(driverId, requestId) {
+  return db.transaction(async (tx) => {
+    const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
+
+    const [booking] = await tx
+      .update(rideRequests)
+      .set({ boardedAt: new Date() })
+      .where(and(eq(rideRequests.id, requestId), eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'DRIVER_ARRIVED')))
+      .returning();
+    if (!booking) {
+      throw new AppError(404, 'NOT_FOUND', 'No such waiting passenger on your ride.');
+    }
+
+    await recordEvent({ rideId: ride.id, requestId: booking.id, actorId: driverId, type: 'BOARDED' }, tx);
+    return booking;
+  });
+}
+
+export async function markNoShow(driverId, requestId) {
+  return db.transaction(async (tx) => {
+    const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
+
+    const waitCutoff = new Date(Date.now() - NO_SHOW_WAIT_MINUTES * 60 * 1000);
+    if (ride.arrivedAt > waitCutoff) {
+      throw new AppError(409, 'NO_SHOW_TOO_EARLY', `Wait ${NO_SHOW_WAIT_MINUTES} minutes after arriving before marking a no-show.`);
+    }
+
+    const [booking] = await tx
+      .select()
+      .from(rideRequests)
+      .where(and(eq(rideRequests.id, requestId), eq(rideRequests.rideId, ride.id)));
+    if (!booking) {
+      throw new AppError(404, 'NOT_FOUND', 'No such passenger on your ride.');
+    }
+    if (booking.boardedAt) {
+      throw new AppError(409, 'ALREADY_BOARDED', 'This passenger already boarded.');
+    }
+
+    const [updated] = await tx
+      .update(rideRequests)
+      .set({ status: 'NO_SHOW' })
+      .where(and(eq(rideRequests.id, requestId), eq(rideRequests.status, 'DRIVER_ARRIVED')))
+      .returning();
+    if (!updated) {
+      throw new AppError(409, 'CANNOT_MARK_NO_SHOW', 'This passenger is not waiting to board.');
+    }
+
+    const newSeatsTaken = ride.seatsTaken - booking.seats;
+    const emptiedOut = newSeatsTaken <= 0;
+    await tx
+      .update(rides)
+      .set({ seatsTaken: newSeatsTaken, status: emptiedOut ? 'CANCELLED' : ride.status })
+      .where(eq(rides.id, ride.id));
+
+    await recordEvent(
+      { rideId: ride.id, requestId: updated.id, actorId: driverId, type: 'NO_SHOW', fromStatus: 'DRIVER_ARRIVED', toStatus: 'NO_SHOW' },
+      tx,
+    );
+    if (emptiedOut) {
+      await recordEvent({ rideId: ride.id, type: 'RIDE_AUTO_CANCELLED', fromStatus: ride.status, toStatus: 'CANCELLED' }, tx);
+    }
+    return updated;
+  });
+}
+
+export async function startRide(driverId) {
+  return db.transaction(async (tx) => {
+    const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
+
+    const bookings = await tx
+      .select()
+      .from(rideRequests)
+      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'DRIVER_ARRIVED')));
+
+    const boarded = bookings.filter((b) => b.boardedAt);
+    const notBoarded = bookings.filter((b) => !b.boardedAt);
+
+    if (boarded.length === 0) {
+      throw new AppError(409, 'NOBODY_BOARDED', 'At least one passenger must board before starting.');
+    }
+
+    for (const booking of notBoarded) {
+      await tx
+        .update(rideRequests)
+        .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null })
+        .where(eq(rideRequests.id, booking.id));
+      await recordEvent(
+        {
+          rideId: ride.id,
+          requestId: booking.id,
+          actorId: driverId,
+          type: 'LEFT_BEHIND',
+          fromStatus: 'DRIVER_ARRIVED',
+          toStatus: 'REQUESTED',
+        },
+        tx,
+      );
+    }
+
+    const boardedCount = boarded.length;
+    const newSeatsTaken = boarded.reduce((sum, b) => sum + b.seats, 0);
+
+    for (const booking of boarded) {
+      const distanceKm = await getZoneDistanceKm(ride.zoneId, booking.dropZoneId);
+      const calculatedFare =
+        booking.rideType === 'PRIVATE'
+          ? privateFarePoysha(distanceKm, ride.capacity)
+          : (boardedCount >= 2 ? pooledFarePerSeatPoysha(distanceKm) : soloFarePerSeatPoysha(distanceKm)) * booking.seats;
+      const finalFare = booking.fareCapPoysha == null ? calculatedFare : Math.min(calculatedFare, booking.fareCapPoysha);
+
+      await tx.update(rideRequests).set({ status: 'IN_PROGRESS', farePoysha: finalFare }).where(eq(rideRequests.id, booking.id));
+
+      await recordEvent(
+        {
+          rideId: ride.id,
+          requestId: booking.id,
+          actorId: driverId,
+          type: 'STARTED',
+          fromStatus: 'DRIVER_ARRIVED',
+          toStatus: 'IN_PROGRESS',
+          details: { farePoysha: finalFare },
+        },
+        tx,
+      );
+    }
+
+    const [updatedRide] = await tx
+      .update(rides)
+      .set({ status: 'STARTED', startedAt: new Date(), seatsTaken: newSeatsTaken })
+      .where(eq(rides.id, ride.id))
+      .returning();
+
+    return updatedRide;
+  });
+}
+
+export async function dropPassenger(driverId, requestId) {
+  return db.transaction(async (tx) => {
+    const ride = await getOwnedActiveRide(tx, driverId, ['STARTED']);
+
+    const [booking] = await tx
+      .update(rideRequests)
+      .set({ status: 'COMPLETED', droppedAt: new Date() })
+      .where(and(eq(rideRequests.id, requestId), eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'IN_PROGRESS')))
+      .returning();
+    if (!booking) {
+      throw new AppError(404, 'NOT_FOUND', 'No such in-progress passenger on your ride.');
+    }
+
+    await recordEvent(
+      { rideId: ride.id, requestId: booking.id, actorId: driverId, type: 'DROPPED', fromStatus: 'IN_PROGRESS', toStatus: 'COMPLETED' },
+      tx,
+    );
+
+    const [{ count }] = await tx
+      .select({ count: sql`count(*)::int` })
+      .from(rideRequests)
+      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'IN_PROGRESS')));
+
+    let updatedRide = ride;
+    if (count === 0) {
+      [updatedRide] = await tx
+        .update(rides)
+        .set({ status: 'COMPLETED', completedAt: new Date() })
+        .where(eq(rides.id, ride.id))
+        .returning();
+      await tx.update(vehicles).set({ currentZoneId: booking.dropZoneId }).where(eq(vehicles.id, ride.vehicleId));
+      await recordEvent({ rideId: ride.id, type: 'RIDE_COMPLETED', fromStatus: 'STARTED', toStatus: 'COMPLETED' }, tx);
+    }
+
+    return { ride: updatedRide, request: booking };
+  });
+}
+
+export async function getDriverRide(driverId) {
+  await expireStaleRequests();
+  await autoCloseStaleRides();
+
+  const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
+  if (!vehicle) {
+    throw new AppError(404, 'NOT_FOUND', 'No vehicle found.');
+  }
+
+  const [ride] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.vehicleId, vehicle.id), inArray(rides.status, ACTIVE_RIDE_STATUSES)));
+  if (!ride) {
+    return { ride: null, passengers: [] };
+  }
+
+  const bookings = await db
+    .select({
+      id: rideRequests.id,
+      status: rideRequests.status,
+      seats: rideRequests.seats,
+      rideType: rideRequests.rideType,
+      womenOnly: rideRequests.womenOnly,
+      dropZoneId: rideRequests.dropZoneId,
+      dropZoneName: zones.name,
+      boardedAt: rideRequests.boardedAt,
+      fareCapPoysha: rideRequests.fareCapPoysha,
+      farePoysha: rideRequests.farePoysha,
+      passengerName: users.name,
+    })
+    .from(rideRequests)
+    .innerJoin(users, eq(users.id, rideRequests.passengerId))
+    .innerJoin(zones, eq(zones.id, rideRequests.dropZoneId))
+    .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
+
+  const withDistance = await Promise.all(
+    bookings.map(async (b) => ({ ...b, distanceFromPickupKm: await getZoneDistanceKm(ride.zoneId, b.dropZoneId) })),
+  );
+  withDistance.sort((a, b) => a.distanceFromPickupKm - b.distanceFromPickupKm);
+
+  return { ride, passengers: withDistance };
+}
+
+export async function getDriverHistory(driverId) {
+  const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
+  if (!vehicle) {
+    throw new AppError(404, 'NOT_FOUND', 'No vehicle found.');
+  }
+  return db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.vehicleId, vehicle.id), inArray(rides.status, ['COMPLETED', 'CANCELLED'])))
+    .orderBy(desc(rides.createdAt));
 }

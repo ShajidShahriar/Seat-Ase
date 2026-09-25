@@ -1,0 +1,1047 @@
+{
+  "id": "93feedac-493d-4333-a9a3-626d88a411e8",
+  "prevId": "8a1045c6-6a0e-48dd-b5f8-fef0baeb186b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.otp_codes": {
+      "name": "otp_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.places": {
+      "name": "places",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "place_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lng": {
+          "name": "lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zone_id": {
+          "name": "zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "places_zone_id_zones_id_fk": {
+          "name": "places_zone_id_zones_id_fk",
+          "tableFrom": "places",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ride_events": {
+      "name": "ride_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ride_id": {
+          "name": "ride_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_status": {
+          "name": "from_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_status": {
+          "name": "to_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ride_events_ride_id_rides_id_fk": {
+          "name": "ride_events_ride_id_rides_id_fk",
+          "tableFrom": "ride_events",
+          "tableTo": "rides",
+          "columnsFrom": [
+            "ride_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_events_request_id_ride_requests_id_fk": {
+          "name": "ride_events_request_id_ride_requests_id_fk",
+          "tableFrom": "ride_events",
+          "tableTo": "ride_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_events_actor_id_users_id_fk": {
+          "name": "ride_events_actor_id_users_id_fk",
+          "tableFrom": "ride_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ride_requests": {
+      "name": "ride_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "passenger_id": {
+          "name": "passenger_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ride_id": {
+          "name": "ride_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "booking_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'REQUESTED'"
+        },
+        "seats": {
+          "name": "seats",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ride_type": {
+          "name": "ride_type",
+          "type": "ride_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SHARED'"
+        },
+        "women_only": {
+          "name": "women_only",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "pickup_stand_id": {
+          "name": "pickup_stand_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_lat": {
+          "name": "pickup_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_lng": {
+          "name": "pickup_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_zone_id": {
+          "name": "pickup_zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "drop_zone_id": {
+          "name": "drop_zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fare_cap_poysha": {
+          "name": "fare_cap_poysha",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fare_poysha": {
+          "name": "fare_poysha",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_hash": {
+          "name": "body_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "boarded_at": {
+          "name": "boarded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dropped_at": {
+          "name": "dropped_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ride_requests_idempotency_unique": {
+          "name": "ride_requests_idempotency_unique",
+          "columns": [
+            {
+              "expression": "passenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ride_requests_one_active_per_passenger": {
+          "name": "ride_requests_one_active_per_passenger",
+          "columns": [
+            {
+              "expression": "passenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"ride_requests\".\"status\" IN ('REQUESTED', 'MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ride_requests_passenger_id_users_id_fk": {
+          "name": "ride_requests_passenger_id_users_id_fk",
+          "tableFrom": "ride_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "passenger_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_requests_ride_id_rides_id_fk": {
+          "name": "ride_requests_ride_id_rides_id_fk",
+          "tableFrom": "ride_requests",
+          "tableTo": "rides",
+          "columnsFrom": [
+            "ride_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_requests_pickup_stand_id_places_id_fk": {
+          "name": "ride_requests_pickup_stand_id_places_id_fk",
+          "tableFrom": "ride_requests",
+          "tableTo": "places",
+          "columnsFrom": [
+            "pickup_stand_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_requests_pickup_zone_id_zones_id_fk": {
+          "name": "ride_requests_pickup_zone_id_zones_id_fk",
+          "tableFrom": "ride_requests",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "pickup_zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ride_requests_drop_zone_id_zones_id_fk": {
+          "name": "ride_requests_drop_zone_id_zones_id_fk",
+          "tableFrom": "ride_requests",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "drop_zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ride_requests_seats_check": {
+          "name": "ride_requests_seats_check",
+          "value": "\"ride_requests\".\"seats\" BETWEEN 1 AND 6"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.rides": {
+      "name": "rides",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "vehicle_id": {
+          "name": "vehicle_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pickup_stand_id": {
+          "name": "pickup_stand_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zone_id": {
+          "name": "zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "ride_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'OPEN'"
+        },
+        "capacity": {
+          "name": "capacity",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seats_taken": {
+          "name": "seats_taken",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "is_private": {
+          "name": "is_private",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "arrived_at": {
+          "name": "arrived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "rides_one_active_per_vehicle": {
+          "name": "rides_one_active_per_vehicle",
+          "columns": [
+            {
+              "expression": "vehicle_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"rides\".\"status\" IN ('OPEN', 'ARRIVED', 'STARTED')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rides_vehicle_id_vehicles_id_fk": {
+          "name": "rides_vehicle_id_vehicles_id_fk",
+          "tableFrom": "rides",
+          "tableTo": "vehicles",
+          "columnsFrom": [
+            "vehicle_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rides_driver_id_users_id_fk": {
+          "name": "rides_driver_id_users_id_fk",
+          "tableFrom": "rides",
+          "tableTo": "users",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rides_pickup_stand_id_places_id_fk": {
+          "name": "rides_pickup_stand_id_places_id_fk",
+          "tableFrom": "rides",
+          "tableTo": "places",
+          "columnsFrom": [
+            "pickup_stand_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rides_zone_id_zones_id_fk": {
+          "name": "rides_zone_id_zones_id_fk",
+          "tableFrom": "rides",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "rides_seats_taken_check": {
+          "name": "rides_seats_taken_check",
+          "value": "\"rides\".\"seats_taken\" BETWEEN 0 AND \"rides\".\"capacity\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gender": {
+          "name": "gender",
+          "type": "user_gender",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNDISCLOSED'"
+        },
+        "phone_verified_at": {
+          "name": "phone_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nid_hash": {
+          "name": "nid_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nid_last4": {
+          "name": "nid_last4",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nid_verified_at": {
+          "name": "nid_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_phone_unique": {
+          "name": "users_phone_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "phone"
+          ]
+        },
+        "users_nid_hash_unique": {
+          "name": "users_nid_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nid_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vehicles": {
+      "name": "vehicles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registration_no": {
+          "name": "registration_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacity": {
+          "name": "capacity",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_online": {
+          "name": "is_online",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "current_zone_id": {
+          "name": "current_zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vehicles_driver_id_users_id_fk": {
+          "name": "vehicles_driver_id_users_id_fk",
+          "tableFrom": "vehicles",
+          "tableTo": "users",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vehicles_current_zone_id_zones_id_fk": {
+          "name": "vehicles_current_zone_id_zones_id_fk",
+          "tableFrom": "vehicles",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "current_zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "vehicles_driver_id_unique": {
+          "name": "vehicles_driver_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "driver_id"
+          ]
+        },
+        "vehicles_registration_no_unique": {
+          "name": "vehicles_registration_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "registration_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "vehicles_capacity_check": {
+          "name": "vehicles_capacity_check",
+          "value": "\"vehicles\".\"capacity\" BETWEEN 1 AND 6"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.zone_distances": {
+      "name": "zone_distances",
+      "schema": "",
+      "columns": {
+        "from_zone_id": {
+          "name": "from_zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_zone_id": {
+          "name": "to_zone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "distance_km": {
+          "name": "distance_km",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "zone_distances_from_zone_id_zones_id_fk": {
+          "name": "zone_distances_from_zone_id_zones_id_fk",
+          "tableFrom": "zone_distances",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "from_zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "zone_distances_to_zone_id_zones_id_fk": {
+          "name": "zone_distances_to_zone_id_zones_id_fk",
+          "tableFrom": "zone_distances",
+          "tableTo": "zones",
+          "columnsFrom": [
+            "to_zone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "zone_distances_from_zone_id_to_zone_id_pk": {
+          "name": "zone_distances_from_zone_id_to_zone_id_pk",
+          "columns": [
+            "from_zone_id",
+            "to_zone_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.zones": {
+      "name": "zones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_lat": {
+          "name": "center_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_lng": {
+          "name": "center_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "zones_name_unique": {
+          "name": "zones_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.booking_status": {
+      "name": "booking_status",
+      "schema": "public",
+      "values": [
+        "REQUESTED",
+        "MATCHED",
+        "DRIVER_ARRIVED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED",
+        "EXPIRED",
+        "NO_SHOW"
+      ]
+    },
+    "public.place_kind": {
+      "name": "place_kind",
+      "schema": "public",
+      "values": [
+        "STAND",
+        "LANDMARK"
+      ]
+    },
+    "public.ride_status": {
+      "name": "ride_status",
+      "schema": "public",
+      "values": [
+        "OPEN",
+        "ARRIVED",
+        "STARTED",
+        "COMPLETED",
+        "CANCELLED"
+      ]
+    },
+    "public.ride_type": {
+      "name": "ride_type",
+      "schema": "public",
+      "values": [
+        "SHARED",
+        "PRIVATE"
+      ]
+    },
+    "public.user_gender": {
+      "name": "user_gender",
+      "schema": "public",
+      "values": [
+        "FEMALE",
+        "MALE",
+        "UNDISCLOSED"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "PASSENGER",
+        "DRIVER"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

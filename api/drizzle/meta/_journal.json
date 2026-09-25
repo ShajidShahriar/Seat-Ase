@@ -43,6 +43,13 @@
       "when": 1790271464111,
       "tag": "0005_rides_and_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790282204525,
+      "tag": "0006_fare_lock_and_dropoff",
+      "breakpoints": true
     }
   ]
 }
