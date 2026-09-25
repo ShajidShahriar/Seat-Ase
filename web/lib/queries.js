@@ -88,3 +88,29 @@ export function useAddVehicle() {
     onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
   });
 }
+
+// ---- Driver: going online in an area, and offline again ----
+
+export function useZones() {
+  return useQuery({
+    queryKey: ['zones'],
+    queryFn: async () => (await api.get('/zones')).zones,
+    staleTime: Infinity,
+  });
+}
+
+export function useGoOnline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (zoneId) => api.post('/driver/online', { zoneId }),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
+
+export function useGoOffline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post('/driver/offline'),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
