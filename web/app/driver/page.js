@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { addVehicleSchema } from '@seat-ase/shared';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
-import { useAddVehicle, useGoOffline, useGoOnline, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -53,6 +53,35 @@ function VehicleForm() {
   );
 }
 
+// ---- Waiting passengers: the empty state now, ride cards arrive in a later phase ----
+
+function RequestList({ areaName }) {
+  const requests = useDriverRequests({ enabled: true });
+
+  if (requests.isPending) return null;
+  if (requests.isError) return <ErrorText>{requests.error.message}</ErrorText>;
+
+  if (requests.data.length === 0) {
+    return (
+      <Group header="Requests">
+        <div className="px-4 py-8 text-center">
+          <p className="text-headline">No requests in {areaName ?? 'your area'} yet</p>
+          <p className="mt-1 text-subhead text-label-secondary">New requests show up here on their own. Keep this screen open.</p>
+        </div>
+      </Group>
+    );
+  }
+
+  const count = requests.data.length;
+  return (
+    <Group header="Requests">
+      <Row>
+        <span className="flex-1">{count === 1 ? '1 passenger waiting' : `${count} passengers waiting`}</span>
+      </Row>
+    </Group>
+  );
+}
+
 // ---- Online toggle: pick the area you are in, then go online there ----
 
 function OnlinePanel({ vehicle }) {
@@ -75,6 +104,8 @@ function OnlinePanel({ vehicle }) {
 
   return (
     <div className="mt-8 flex flex-col gap-8">
+      {vehicle.isOnline ? <RequestList areaName={currentName} /> : null}
+
       {vehicle.isOnline ? (
         <Group>
           <Row onClick={() => goOffline.mutate()} disabled={goOffline.isPending}>

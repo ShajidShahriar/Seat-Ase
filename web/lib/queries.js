@@ -114,3 +114,13 @@ export function useGoOffline() {
     onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
   });
 }
+
+// ---- Driver: passengers waiting for a car (refetched by live updates) ----
+
+export function useDriverRequests({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'requests'],
+    queryFn: async () => (await api.get('/driver/requests')).requests,
+    enabled,
+  });
+}
