@@ -63,3 +63,64 @@ export function useVerifyOtp() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
   });
 }
+
+// ---- Driver: the vehicle (null until they add one) ----
+
+export function useVehicle() {
+  return useQuery({
+    queryKey: ['driver', 'vehicle'],
+    queryFn: async () => {
+      try {
+        const { vehicle } = await api.get('/driver/vehicle');
+        return vehicle;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+  });
+}
+
+export function useAddVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (details) => api.post('/driver/vehicle', details),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
+
+// ---- Driver: going online in an area, and offline again ----
+
+export function useZones() {
+  return useQuery({
+    queryKey: ['zones'],
+    queryFn: async () => (await api.get('/zones')).zones,
+    staleTime: Infinity,
+  });
+}
+
+export function useGoOnline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (zoneId) => api.post('/driver/online', { zoneId }),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
+
+export function useGoOffline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post('/driver/offline'),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
+
+// ---- Driver: passengers waiting for a car (refetched by live updates) ----
+
+export function useDriverRequests({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'requests'],
+    queryFn: async () => (await api.get('/driver/requests')).requests,
+    enabled,
+  });
+}
