@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 // The placeholder shipped in .env.example. Fine on a laptop, never in production.
 export const EXAMPLE_JWT_SECRET = 'dev-only-secret-change-me-at-least-32-chars';
+export const EXAMPLE_NID_PEPPER = 'dev-only-nid-pepper-never-rotate-at-least-32';
 
 const envSchema = z
   .object({
@@ -9,12 +10,17 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(4000),
     DATABASE_URL: z.string().startsWith('postgres', 'DATABASE_URL must be a postgres:// URL'),
     JWT_SECRET: z.string().optional(),
+    NID_PEPPER: z.string().optional(),
     LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('http'),
     COOKIE_SECURE: z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
     SSE_HEARTBEAT_MS: z.coerce.number().int().positive().default(25000),
+    DEMO_MODE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
   })
   .superRefine((env, ctx) => {
     // Red-team #38: a missing or guessable secret lets anyone forge a login as Jashim.
@@ -25,6 +31,14 @@ const envSchema = z
         code: 'custom',
         path: ['JWT_SECRET'],
         message: 'must be set to a real secret of at least 32 characters in production',
+      });
+    }
+    const pepper = env.NID_PEPPER ?? '';
+    if (pepper.length < 32 || pepper === EXAMPLE_NID_PEPPER) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['NID_PEPPER'],
+        message: 'must be set to a real secret of at least 32 characters in production, and never changed afterwards',
       });
     }
   });
@@ -44,6 +58,7 @@ export function loadEnv(source = process.env) {
   }
   const env = result.data;
   env.JWT_SECRET ??= EXAMPLE_JWT_SECRET; // only reachable outside production
+  env.NID_PEPPER ??= EXAMPLE_NID_PEPPER;
   return env;
 }
 

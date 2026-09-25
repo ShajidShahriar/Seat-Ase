@@ -11,6 +11,10 @@ const MAX_ATTEMPTS = 5;
 const SEND_LIMIT_WINDOW_MINUTES = 15;
 const SEND_LIMIT = 3;
 
+export function showsDemoCode(config = env) {
+  return config.DEMO_MODE || config.NODE_ENV !== 'production';
+}
+
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -32,7 +36,7 @@ export async function sendOtp(phone) {
 
   await db.insert(otpCodes).values({ phone, codeHash, expiresAt });
 
-  return env.NODE_ENV === 'production' ? {} : { demoCode: code };
+  return showsDemoCode() ? { demoCode: code } : {};
 }
 
 export async function verifyOtp(phone, code) {

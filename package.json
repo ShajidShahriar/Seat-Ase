@@ -4,13 +4,15 @@
   "description": "Seat Ase? — a Dhaka Tesla Pool MVP",
   "workspaces": [
     "api",
-    "shared"
+    "shared",
+    "web"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev:api": "npm run dev -w api",
-    "test": "npm test -w api"
+    "test": "npm test -w api",
+    "dev:web": "npm run dev -w web"
   }
 }

@@ -29,10 +29,24 @@ services:
       LOG_LEVEL: http
       DATABASE_URL: postgres://seatase:seatase@db:5432/seatase
       JWT_SECRET: ${JWT_SECRET:-local-docker-only-secret-never-use-online}
+      NID_PEPPER: ${NID_PEPPER:-local-docker-only-nid-pepper-never-use-online}
       COOKIE_SECURE: "false"
       SSE_HEARTBEAT_MS: 25000
+      DEMO_MODE: "true"
     ports:
       - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        API_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-3000}:3000"
 
 volumes:
   pgdata: # named volume: Jashim, Nusrat & co. survive `docker compose down`/`up`

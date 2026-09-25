@@ -4,7 +4,7 @@
 .env.*
 !.env.example
 *.md
-web
+**/.next
 coverage
 **/*.test.js
 api/vitest.config.js
