@@ -63,3 +63,28 @@ export function useVerifyOtp() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
   });
 }
+
+// ---- Driver: the vehicle (null until they add one) ----
+
+export function useVehicle() {
+  return useQuery({
+    queryKey: ['driver', 'vehicle'],
+    queryFn: async () => {
+      try {
+        const { vehicle } = await api.get('/driver/vehicle');
+        return vehicle;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+  });
+}
+
+export function useAddVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (details) => api.post('/driver/vehicle', details),
+    onSuccess: ({ vehicle }) => queryClient.setQueryData(['driver', 'vehicle'], vehicle),
+  });
+}
