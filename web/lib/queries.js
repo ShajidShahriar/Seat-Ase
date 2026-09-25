@@ -167,3 +167,28 @@ export function useOnlineCount(zoneId) {
     refetchInterval: 30_000,
   });
 }
+
+// ---- Passenger: bookings, asking for a ride, cancelling ----
+
+export function useBookings() {
+  return useQuery({
+    queryKey: ['bookings', 'list'],
+    queryFn: async () => (await api.get('/requests')).requests,
+  });
+}
+
+export function useCreateRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ body, key }) => api.post('/requests', body, { 'Idempotency-Key': key }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+  });
+}
+
+export function useCancelBooking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/requests/${id}/cancel`),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+  });
+}
