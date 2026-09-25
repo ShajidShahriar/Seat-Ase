@@ -14,6 +14,7 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    SSE_HEARTBEAT_MS: z.coerce.number().int().positive().default(25000),
   })
   .superRefine((env, ctx) => {
     // Red-team #38: a missing or guessable secret lets anyone forge a login as Jashim.
