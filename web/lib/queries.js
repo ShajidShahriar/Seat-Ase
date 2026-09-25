@@ -124,3 +124,26 @@ export function useDriverRequests({ enabled }) {
     enabled,
   });
 }
+
+// ---- Passenger: searching places by name (stands and landmarks) ----
+
+export function usePlaceSearch(text) {
+  const query = text.trim();
+  return useQuery({
+    queryKey: ['places', query],
+    queryFn: async () => (await api.get(`/places?q=${encodeURIComponent(query)}`)).places,
+    enabled: query.length >= 2,
+    staleTime: 5 * 60_000,
+  });
+}
+
+// ---- Passenger: the stand a pickup place snaps to, and how far the walk is ----
+
+export function useNearestStand(place) {
+  return useQuery({
+    queryKey: ['nearest-stand', place?.lat, place?.lng],
+    queryFn: () => api.post('/places/nearest-stand', { lat: place.lat, lng: place.lng }),
+    enabled: Boolean(place),
+    staleTime: 5 * 60_000,
+  });
+}
