@@ -29,6 +29,7 @@ services:
       LOG_LEVEL: http
       DATABASE_URL: postgres://seatase:seatase@db:5432/seatase
       JWT_SECRET: ${JWT_SECRET:-local-docker-only-secret-never-use-online}
+      NID_PEPPER: ${NID_PEPPER:-local-docker-only-nid-pepper-never-use-online}
       COOKIE_SECURE: "false"
       SSE_HEARTBEAT_MS: 25000
       DEMO_MODE: "true"
