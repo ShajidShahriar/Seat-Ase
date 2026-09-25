@@ -165,10 +165,12 @@ export const rideRequests = pgTable(
       .notNull()
       .references(() => zones.id),
     fareCapPoysha: integer('fare_cap_poysha'),
+    farePoysha: integer('fare_poysha'),
     idempotencyKey: text('idempotency_key').notNull(),
     bodyHash: text('body_hash').notNull(),
     queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
     boardedAt: timestamp('boarded_at', { withTimezone: true }),
+    droppedAt: timestamp('dropped_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

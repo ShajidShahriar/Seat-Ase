@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { rideRequests, rides } from '../db/schema.js';
+import { rideRequests, rides, rideEvents } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
@@ -8,6 +8,8 @@ import { recordEvent } from './rideEventService.js';
 
 export const ACTIVE_BOOKING_STATUSES = ['REQUESTED', 'MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
 const EXPIRY_MINUTES = 15;
+const ARRIVAL_CANCEL_MINUTES = 15;
+const AUTO_CLOSE_HOURS = 3;
 
 export async function expireStaleRequests() {
   const cutoff = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
@@ -15,6 +17,20 @@ export async function expireStaleRequests() {
     .update(rideRequests)
     .set({ status: 'EXPIRED' })
     .where(and(eq(rideRequests.status, 'REQUESTED'), lt(rideRequests.queuedAt, cutoff)));
+}
+
+export async function autoCloseStaleRides() {
+  const cutoff = new Date(Date.now() - AUTO_CLOSE_HOURS * 60 * 60 * 1000);
+  const staleRides = await db.select().from(rides).where(and(eq(rides.status, 'STARTED'), lt(rides.startedAt, cutoff)));
+
+  for (const ride of staleRides) {
+    await db.update(rides).set({ status: 'COMPLETED', completedAt: new Date() }).where(eq(rides.id, ride.id));
+    await db
+      .update(rideRequests)
+      .set({ status: 'COMPLETED', droppedAt: new Date() })
+      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'IN_PROGRESS')));
+    await recordEvent({ rideId: ride.id, type: 'RIDE_AUTO_CLOSED', fromStatus: 'STARTED', toStatus: 'COMPLETED' });
+  }
 }
 
 async function resolvePickup(rideType, lat, lng) {
@@ -83,11 +99,13 @@ export async function createRequest(passenger, body, idempotencyKey) {
 
 export async function listForPassenger(passengerId) {
   await expireStaleRequests();
+  await autoCloseStaleRides();
   return db.select().from(rideRequests).where(eq(rideRequests.passengerId, passengerId)).orderBy(desc(rideRequests.createdAt));
 }
 
 export async function getOwnRequest(id, passengerId) {
   await expireStaleRequests();
+  await autoCloseStaleRides();
   const [request] = await db
     .select()
     .from(rideRequests)
@@ -124,13 +142,24 @@ export async function cancelRequest(id, passengerId) {
       return updated;
     }
 
-    if (existing.status === 'MATCHED') {
+    if (existing.status === 'MATCHED' || existing.status === 'DRIVER_ARRIVED') {
       const [ride] = await tx.select().from(rides).where(eq(rides.id, existing.rideId)).for('update');
+
+      if (existing.status === 'DRIVER_ARRIVED') {
+        const escapeCutoff = new Date(Date.now() - ARRIVAL_CANCEL_MINUTES * 60 * 1000);
+        if (ride.arrivedAt > escapeCutoff) {
+          throw new AppError(
+            409,
+            'DRIVER_JUST_ARRIVED',
+            `You can cancel once ${ARRIVAL_CANCEL_MINUTES} minutes have passed since the driver arrived without starting.`,
+          );
+        }
+      }
 
       const [updated] = await tx
         .update(rideRequests)
         .set({ status: 'CANCELLED' })
-        .where(and(eq(rideRequests.id, id), eq(rideRequests.status, 'MATCHED')))
+        .where(and(eq(rideRequests.id, id), eq(rideRequests.status, existing.status)))
         .returning();
       if (!updated) {
         throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
@@ -144,7 +173,7 @@ export async function cancelRequest(id, passengerId) {
         .where(eq(rides.id, ride.id));
 
       await recordEvent(
-        { rideId: ride.id, requestId: id, actorId: passengerId, type: 'CANCELLED', fromStatus: 'MATCHED', toStatus: 'CANCELLED' },
+        { rideId: ride.id, requestId: id, actorId: passengerId, type: 'CANCELLED', fromStatus: existing.status, toStatus: 'CANCELLED' },
         tx,
       );
       if (emptiedOut) {
@@ -158,4 +187,25 @@ export async function cancelRequest(id, passengerId) {
 
     throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
   });
+}
+
+export async function getOwnTimeline(id, passengerId) {
+  const [existing] = await db
+    .select()
+    .from(rideRequests)
+    .where(and(eq(rideRequests.id, id), eq(rideRequests.passengerId, passengerId)));
+  if (!existing) {
+    throw new AppError(404, 'NOT_FOUND', 'No booking found with that id.');
+  }
+
+  const ownEvent = eq(rideEvents.requestId, id);
+  const rideWideEvent = existing.rideId
+    ? and(eq(rideEvents.rideId, existing.rideId), isNull(rideEvents.requestId))
+    : undefined;
+
+  return db
+    .select({ type: rideEvents.type, fromStatus: rideEvents.fromStatus, toStatus: rideEvents.toStatus, createdAt: rideEvents.createdAt })
+    .from(rideEvents)
+    .where(rideWideEvent ? or(ownEvent, rideWideEvent) : ownEvent)
+    .orderBy(asc(rideEvents.createdAt));
 }
