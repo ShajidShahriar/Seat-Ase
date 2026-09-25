@@ -52,8 +52,9 @@ describe('POST /auth/signup', () => {
     await request(api).post('/auth/signup').send(jashim);
     const res = await request(api)
       .post('/auth/signup')
-      .send({ ...jashim, phone: '+8801700000010' });
+      .send({ ...jashim, phone: '+8801700000010', nid: '9999999999' });
     expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('PHONE_TAKEN');
   });
 
   it('rejects a weak password before touching the database', async () => {
@@ -90,6 +91,7 @@ describe('POST /auth/signup', () => {
       .post('/auth/signup')
       .send({ ...jashim, name: 'Fake Jashim', phone: '01799999999' });
     expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NID_TAKEN');
   });
 
   it('stores only a hash and the last 4 digits of the NID, never the full number', async () => {
