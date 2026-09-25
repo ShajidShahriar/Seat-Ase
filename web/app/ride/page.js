@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, ErrorText } from '../../components/ui.js';
-import { useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
+import { useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
+import RideOptions from '../../components/RideOptions.js';
 
 const RideMap = dynamic(() => import('../../components/RideMap.js'), {
   ssr: false,
@@ -81,7 +82,9 @@ export default function RidePage() {
   const logout = useLogout();
   const [active, setActive] = useState('pickup');
   const [fields, setFields] = useState({ pickup: { text: '', place: null }, drop: { text: '', place: null } });
+  const [options, setOptions] = useState({ rideType: 'SHARED', seats: 1, womenOnly: false });
   const nearest = useNearestStand(fields.pickup.place);
+  const quote = useFareQuote({ pickup: fields.pickup.place, drop: fields.drop.place, seats: options.seats });
 
   useEffect(() => {
     if (isPending) return;
@@ -122,6 +125,12 @@ export default function RidePage() {
       ) : null}
 
       <div className="mt-6">{shown.place ? null : <PlaceResults key={active} text={shown.text} onPick={pick} />}</div>
+
+      {fields.pickup.place && fields.drop.place ? (
+        <div className="mt-6">
+          <RideOptions isFemale={me.gender === 'FEMALE'} options={options} onChange={setOptions} quote={quote} />
+        </div>
+      ) : null}
 
       <Group className="mt-8">
         <Row onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace('/login') })} disabled={logout.isPending}>

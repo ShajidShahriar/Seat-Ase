@@ -147,3 +147,23 @@ export function useNearestStand(place) {
     staleTime: 5 * 60_000,
   });
 }
+
+// ---- Passenger: what this trip would cost, and how many Teslas are online ----
+
+export function useFareQuote({ pickup, drop, seats }) {
+  return useQuery({
+    queryKey: ['fare-quote', pickup?.lat, pickup?.lng, drop?.lat, drop?.lng, seats],
+    queryFn: () => api.post('/fares/quote', { pickupLat: pickup.lat, pickupLng: pickup.lng, dropLat: drop.lat, dropLng: drop.lng, seats }),
+    enabled: Boolean(pickup && drop),
+    staleTime: 60_000,
+  });
+}
+
+export function useOnlineCount(zoneId) {
+  return useQuery({
+    queryKey: ['online-count', zoneId],
+    queryFn: async () => (await api.get(`/zones/${zoneId}/online-count`)).count,
+    enabled: Boolean(zoneId),
+    refetchInterval: 30_000,
+  });
+}
