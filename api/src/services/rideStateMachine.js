@@ -1,0 +1,26 @@
+export const RIDE_TRANSITIONS = {
+  OPEN: { ARRIVED: 'DRIVER', CANCELLED: 'DRIVER' },
+  ARRIVED: { STARTED: 'DRIVER', CANCELLED: 'DRIVER' },
+  STARTED: { COMPLETED: 'SYSTEM' },
+  COMPLETED: {},
+  CANCELLED: {},
+};
+
+export const BOOKING_TRANSITIONS = {
+  REQUESTED: { MATCHED: 'DRIVER', CANCELLED: 'PASSENGER', EXPIRED: 'SYSTEM' },
+  MATCHED: { DRIVER_ARRIVED: 'SYSTEM', CANCELLED: 'PASSENGER', REQUESTED: 'SYSTEM' },
+  DRIVER_ARRIVED: { IN_PROGRESS: 'SYSTEM', NO_SHOW: 'DRIVER', REQUESTED: 'SYSTEM', CANCELLED: 'PASSENGER' },
+  IN_PROGRESS: { COMPLETED: 'DRIVER' },
+  COMPLETED: {},
+  CANCELLED: {},
+  EXPIRED: {},
+  NO_SHOW: {},
+};
+
+export function canTransitionRide(from, to) {
+  return Boolean(RIDE_TRANSITIONS[from]?.[to]);
+}
+
+export function canTransitionBooking(from, to) {
+  return Boolean(BOOKING_TRANSITIONS[from]?.[to]);
+}
