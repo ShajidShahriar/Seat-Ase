@@ -124,3 +124,15 @@ export function useDriverRequests({ enabled }) {
     enabled,
   });
 }
+
+// ---- Passenger: searching places by name (stands and landmarks) ----
+
+export function usePlaceSearch(text) {
+  const query = text.trim();
+  return useQuery({
+    queryKey: ['places', query],
+    queryFn: async () => (await api.get(`/places?q=${encodeURIComponent(query)}`)).places,
+    enabled: query.length >= 2,
+    staleTime: 5 * 60_000,
+  });
+}
