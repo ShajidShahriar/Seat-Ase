@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { addVehicleSchema } from '@seat-ase/shared';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
-import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -147,6 +147,7 @@ export default function DriverPage() {
   const router = useRouter();
   const { data: me, isPending: meLoading } = useMe();
   const vehicle = useVehicle();
+  const logout = useLogout();
 
   useEffect(() => {
     if (meLoading) return;
@@ -184,6 +185,12 @@ export default function DriverPage() {
           </Group>
         </>
       )}
+
+      <Group className="mt-8">
+        <Row onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace('/login') })} disabled={logout.isPending}>
+          <span className="flex-1 text-red">Log out</span>
+        </Row>
+      </Group>
     </main>
   );
 }

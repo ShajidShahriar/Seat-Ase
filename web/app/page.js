@@ -15,10 +15,12 @@ export default function Home() {
   const live = useLiveStatus();
 
   useEffect(() => {
-    if (!isPending && !me) router.replace('/login');
+    if (isPending) return;
+    if (!me) router.replace('/login');
+    else if (me.role === 'DRIVER') router.replace('/driver');
   }, [isPending, me, router]);
 
-  if (!me) return null;
+  if (!me || me.role === 'DRIVER') return null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-16">
