@@ -1,24 +1,49 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Group, Row, Separator } from '../components/ui.js';
+import { useLogout, useMe } from '../lib/queries.js';
+import { useLiveStatus } from './providers.js';
+
+// ---- Temporary signed-in home until the passenger and driver screens exist (Phases 10-11) ----
+
 export default function Home() {
+  const router = useRouter();
+  const { data: me, isPending } = useMe();
+  const logout = useLogout();
+  const live = useLiveStatus();
+
+  useEffect(() => {
+    if (!isPending && !me) router.replace('/login');
+  }, [isPending, me, router]);
+
+  if (!me) return null;
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-16">
-      <h1 className="text-large-title">Seat Ase?</h1>
-      <p className="mt-2 text-subhead text-label-secondary">Shared Teslas from your nearest stand.</p>
+      <h1 className="text-large-title">Hi, {me.name}</h1>
+      <p className="mt-1 text-subhead text-label-secondary">
+        {me.role === 'DRIVER' ? 'Driver' : 'Passenger'} · live updates {live}
+      </p>
 
-      <section className="mt-8 overflow-hidden rounded-cell bg-grouped-cell">
-        <div className="flex items-center justify-between px-4 py-3">
-          <span>Banani Road 11 police box</span>
-          <span className="text-label-secondary">350 m</span>
-        </div>
-        <div className="ml-4 h-px bg-separator" />
-        <div className="flex items-center justify-between px-4 py-3">
-          <span>Teslas nearby</span>
-          <span className="text-green">1 online</span>
-        </div>
-      </section>
+      <Group className="mt-8">
+        <Row>
+          <span className="flex-1">Phone</span>
+          <span className="text-label-secondary">{me.phone}</span>
+        </Row>
+        <Separator />
+        <Row>
+          <span className="flex-1">Phone verified</span>
+          <span className={me.phoneVerified ? 'text-green' : 'text-label-secondary'}>{me.phoneVerified ? 'Yes' : 'Not yet'}</span>
+        </Row>
+      </Group>
 
-      <button className="mt-8 h-12 rounded-control bg-primary text-headline text-on-primary active:opacity-80">
-        Find a seat
-      </button>
+      <Group className="mt-8">
+        <Row onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace('/login') })} disabled={logout.isPending}>
+          <span className="flex-1 text-red">Log out</span>
+        </Row>
+      </Group>
     </main>
   );
 }
