@@ -31,6 +31,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-docker-only-secret-never-use-online}
       COOKIE_SECURE: "false"
       SSE_HEARTBEAT_MS: 25000
+      DEMO_MODE: "true"
     ports:
       - "4000:4000"
 
