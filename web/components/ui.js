@@ -65,3 +65,27 @@ export function ErrorText({ children }) {
     </p>
   );
 }
+
+// ---- Segmented control: Apple's two-or-three-way switch ----
+
+export function Segmented({ options, value, onChange, label }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-[9px] bg-fill p-0.5">
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={`h-8 flex-1 rounded-[7px] text-subhead font-medium ${selected ? 'bg-grouped-cell shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'active:opacity-60'}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

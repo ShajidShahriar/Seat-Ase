@@ -39,6 +39,14 @@ export default function Home() {
         </Row>
       </Group>
 
+      {me.role === 'PASSENGER' && !me.phoneVerified ? (
+        <Group className="mt-8" footer="You need a verified phone before you can request a ride.">
+          <Row onClick={() => router.push('/verify')}>
+            <span className="flex-1 text-blue">Verify your phone</span>
+          </Row>
+        </Group>
+      ) : null}
+
       <Group className="mt-8">
         <Row onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace('/login') })} disabled={logout.isPending}>
           <span className="flex-1 text-red">Log out</span>

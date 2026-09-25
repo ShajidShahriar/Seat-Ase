@@ -41,3 +41,25 @@ export function useLogout() {
     },
   });
 }
+
+// ---- Signing up and verifying the phone ----
+
+export function useSignup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (details) => api.post('/auth/signup', details),
+    onSuccess: ({ user }) => queryClient.setQueryData(['me'], user),
+  });
+}
+
+export function useSendOtp() {
+  return useMutation({ mutationFn: () => api.post('/auth/otp/send') });
+}
+
+export function useVerifyOtp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (code) => api.post('/auth/otp/verify', { code }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  });
+}

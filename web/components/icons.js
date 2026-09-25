@@ -7,3 +7,11 @@ export function Chevron() {
     </svg>
   );
 }
+
+export function Checkmark() {
+  return (
+    <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true" className="shrink-0 text-blue">
+      <path d="M1.5 6.5 5 10 12.5 1.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
