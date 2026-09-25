@@ -637,6 +637,51 @@
               }
             }
           ]
+        },
+        {
+          "name": "Fare quote from coordinates (the same zones a request uses)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/fares/quote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fares",
+                "quote"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupLat\": 23.7937,\n  \"pickupLng\": 90.4076,\n  \"dropLat\": 23.7805,\n  \"dropLng\": 90.4053,\n  \"seats\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('shared: pooled 9625, solo 11500', () => { pm.expect(body.shared.pooledPoysha).to.eql(9625); pm.expect(body.shared.soloPoysha).to.eql(11500); });",
+                  "pm.test('private: 34500', () => pm.expect(body.private.privatePoysha).to.eql(34500));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

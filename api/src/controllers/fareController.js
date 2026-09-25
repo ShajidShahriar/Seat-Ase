@@ -1,9 +1,15 @@
 import { getZoneDistanceKm } from '../services/placesService.js';
 import { estimateFares } from '../services/fareService.js';
+import { quoteFare } from '../services/rideRequestService.js';
 
 export async function estimate(req, res) {
   const { pickupZoneId, dropZoneId, seats } = req.valid.body;
   const distanceKm = await getZoneDistanceKm(pickupZoneId, dropZoneId);
   const fares = estimateFares(distanceKm, { seats });
   res.json({ distanceKm, ...fares });
+}
+
+export async function quote(req, res) {
+  const result = await quoteFare(req.valid.body);
+  res.json(result);
 }

@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { Group, Separator, Row, Field, ErrorText } from '../../components/ui.js';
-import { useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
+import { Group, Separator, Row, Field, PrimaryButton, ErrorText } from '../../components/ui.js';
+import { useBookings, useCancelBooking, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
+import RideOptions from '../../components/RideOptions.js';
+import { ACTIVE_STATUSES, STATUS_TITLES, newIdempotencyKey } from '../../lib/bookings.js';
+
+const RideMap = dynamic(() => import('../../components/RideMap.js'), {
+  ssr: false,
+  loading: () => <div className="h-56 rounded-cell bg-fill" />,
+});
 
 const KIND_LABELS = { STAND: 'Tesla stand', LANDMARK: 'Landmark' };
 
@@ -60,44 +68,99 @@ function PickupPoint({ place }) {
       <Row>
         <span className="min-w-0 flex-1">
           <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
-          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.name}`}</span>
+          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.kind === 'PIN' ? 'your pin' : place.name}`}</span>
         </span>
       </Row>
     </Group>
   );
 }
 
+// ---- A booking that is already in progress: shown instead of the search form ----
+
+function ActiveBooking({ booking }) {
+  const zones = useZones();
+  const cancel = useCancelBooking();
+  const zoneName = (id) => zones.data?.find((zone) => zone.id === id)?.name;
+
+  return (
+    <>
+      <h1 className="text-large-title">{STATUS_TITLES[booking.status]}</h1>
+
+      <Group className="mt-8">
+        <Row>
+          <span className="flex-1">Route</span>
+          <span className="text-label-secondary">
+            {zoneName(booking.pickupZoneId)} to {zoneName(booking.dropZoneId)}
+          </span>
+        </Row>
+        <Separator />
+        <Row>
+          <span className="flex-1">Ride</span>
+          <span className="text-label-secondary">
+            {booking.rideType === 'PRIVATE' ? 'Private' : booking.womenOnly ? 'Women-only shared' : 'Shared'}, {booking.seats} {booking.seats === 1 ? 'seat' : 'seats'}
+          </span>
+        </Row>
+      </Group>
+
+      {booking.status === 'REQUESTED' ? (
+        <div className="mt-8">
+          <Group footer="Drivers in your area can see your request. It expires after 15 minutes.">
+            <Row onClick={() => cancel.mutate(booking.id)} disabled={cancel.isPending}>
+              <span className="flex-1 text-red">Cancel request</span>
+            </Row>
+          </Group>
+          <ErrorText>{cancel.error?.message}</ErrorText>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 // ---- Where are you, and where to ----
 
-export default function RidePage() {
-  const router = useRouter();
-  const { data: me, isPending } = useMe();
-  const logout = useLogout();
+function PlanRide({ me }) {
   const [active, setActive] = useState('pickup');
   const [fields, setFields] = useState({ pickup: { text: '', place: null }, drop: { text: '', place: null } });
-
-  useEffect(() => {
-    if (isPending) return;
-    if (!me) router.replace('/login');
-    else if (me.role === 'DRIVER') router.replace('/driver');
-    else if (!me.phoneVerified) router.replace('/verify');
-  }, [isPending, me, router]);
-
-  if (!me || me.role === 'DRIVER' || !me.phoneVerified) return null;
+  const [options, setOptions] = useState({ rideType: 'SHARED', seats: 1, womenOnly: false });
+  const nearest = useNearestStand(fields.pickup.place);
+  const quote = useFareQuote({ pickup: fields.pickup.place, drop: fields.drop.place, seats: options.seats });
+  const createRequest = useCreateRequest();
+  const attempt = useRef({ signature: null, key: null });
 
   const type = (key) => (event) => setFields((f) => ({ ...f, [key]: { text: event.target.value, place: null } }));
   const pick = (place) => {
     setFields((f) => ({ ...f, [active]: { text: place.name, place } }));
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
+  const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
+  const isPrivate = options.rideType === 'PRIVATE';
+
+  function requestRide() {
+    const body = {
+      pickupLat: fields.pickup.place.lat,
+      pickupLng: fields.pickup.place.lng,
+      dropLat: fields.drop.place.lat,
+      dropLng: fields.drop.place.lng,
+      seats: isPrivate ? 1 : options.seats,
+      rideType: options.rideType,
+      womenOnly: isPrivate ? false : options.womenOnly,
+    };
+    const signature = JSON.stringify(body);
+    if (attempt.current.signature !== signature) attempt.current = { signature, key: newIdempotencyKey() };
+    createRequest.mutate({ body, key: attempt.current.key });
+  }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <>
       <h1 className="text-large-title">Where to?</h1>
-      <p className="mt-1 text-subhead text-label-secondary">Hi {me.name}. Pick where you are and where you are going.</p>
 
-      <Group className="mt-8">
+      <div className="mt-6">
+        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} onTap={dropPin} />
+      </div>
+      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place, or tap the map to drop a pin.</p>
+
+      <Group className="mt-6">
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />
@@ -110,6 +173,52 @@ export default function RidePage() {
       ) : null}
 
       <div className="mt-6">{shown.place ? null : <PlaceResults key={active} text={shown.text} onPick={pick} />}</div>
+
+      {fields.pickup.place && fields.drop.place ? (
+        <>
+          <div className="mt-6">
+            <RideOptions isFemale={me.gender === 'FEMALE'} options={options} onChange={setOptions} quote={quote} />
+          </div>
+          <div className="mt-6">
+            <PrimaryButton onClick={requestRide} loading={createRequest.isPending} disabled={!quote.data}>
+              {isPrivate ? 'Request a private ride' : 'Request a ride'}
+            </PrimaryButton>
+            <ErrorText>{createRequest.error?.message}</ErrorText>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+// ---- The passenger's home: an active booking if there is one, otherwise the search ----
+
+export default function RidePage() {
+  const router = useRouter();
+  const { data: me, isPending } = useMe();
+  const logout = useLogout();
+  const bookings = useBookings();
+
+  useEffect(() => {
+    if (isPending) return;
+    if (!me) router.replace('/login');
+    else if (me.role === 'DRIVER') router.replace('/driver');
+    else if (!me.phoneVerified) router.replace('/verify');
+  }, [isPending, me, router]);
+
+  if (!me || me.role === 'DRIVER' || !me.phoneVerified) return null;
+
+  const activeBooking = bookings.data?.find((booking) => ACTIVE_STATUSES.includes(booking.status));
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+      {bookings.isPending ? null : bookings.isError ? (
+        <ErrorText>{bookings.error.message}</ErrorText>
+      ) : activeBooking ? (
+        <ActiveBooking booking={activeBooking} />
+      ) : (
+        <PlanRide me={me} />
+      )}
 
       <Group className="mt-8">
         <Row onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace('/login') })} disabled={logout.isPending}>

@@ -6,6 +6,7 @@ import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
 import { recordEvent } from './rideEventService.js';
 import { nudge } from '../realtime/nudges.js';
+import { estimateFares } from './fareService.js';
 
 export const ACTIVE_BOOKING_STATUSES = ['REQUESTED', 'MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
 const EXPIRY_MINUTES = 15;
@@ -49,6 +50,32 @@ async function resolvePickup(rideType, lat, lng) {
   }
   const nearest = await placesService.nearestStandWithWalk(lat, lng);
   return { pickupStandId: nearest.stand.id, pickupZoneId: nearest.zone.id, pickupLat: null, pickupLng: null };
+}
+
+export async function quoteFare({ pickupLat, pickupLng, dropLat, dropLng, seats }) {
+  const shared = await resolvePickup('SHARED', pickupLat, pickupLng);
+  const door = await resolvePickup('PRIVATE', pickupLat, pickupLng);
+  const dropZone = await placesService.assertWithinServiceArea(dropLat, dropLng);
+
+  const sharedKm = await placesService.getZoneDistanceKm(shared.pickupZoneId, dropZone.id);
+  const privateKm = await placesService.getZoneDistanceKm(door.pickupZoneId, dropZone.id);
+  const sharedFares = estimateFares(sharedKm, { seats });
+  const privateFares = estimateFares(privateKm, { seats });
+
+  return {
+    dropZoneId: dropZone.id,
+    shared: {
+      pickupZoneId: shared.pickupZoneId,
+      distanceKm: sharedKm,
+      soloPoysha: sharedFares.soloPoysha,
+      pooledPoysha: sharedFares.pooledPoysha,
+    },
+    private: {
+      pickupZoneId: door.pickupZoneId,
+      distanceKm: privateKm,
+      privatePoysha: privateFares.privatePoysha,
+    },
+  };
 }
 
 export async function createRequest(passenger, body, idempotencyKey) {

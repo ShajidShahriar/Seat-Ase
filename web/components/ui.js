@@ -89,3 +89,20 @@ export function Segmented({ options, value, onChange, label }) {
     </div>
   );
 }
+
+// ---- Switch: Apple's on/off control ----
+
+export function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full ${checked ? 'bg-green-fill' : 'bg-fill'}`}
+    >
+      <span className={`absolute left-0.5 top-0.5 h-[27px] w-[27px] rounded-full bg-grouped-cell shadow-[0_2px_4px_rgb(0_0_0/0.25)] ${checked ? 'translate-x-5' : ''}`} />
+    </button>
+  );
+}
