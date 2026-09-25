@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, ErrorText } from '../../components/ui.js';
-import { useLogout, useMe, usePlaceSearch, useZones } from '../../lib/queries.js';
+import { useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
 
 const KIND_LABELS = { STAND: 'Tesla stand', LANDMARK: 'Landmark' };
@@ -44,6 +44,29 @@ function PlaceResults({ text, onPick }) {
   );
 }
 
+// ---- The stand the passenger will board at, and the walk to it ----
+
+function PickupPoint({ place }) {
+  const nearest = useNearestStand(place);
+
+  if (nearest.isPending) return <p className="px-4 text-subhead text-label-secondary">Finding the nearest stand</p>;
+  if (nearest.isError) return <ErrorText>{nearest.error.message}</ErrorText>;
+
+  const { stand, zone, distanceMeters, walkMinutes } = nearest.data;
+  const boardsHere = place.kind === 'STAND' && place.id === stand.id;
+
+  return (
+    <Group header="Pickup point" footer={`${zone.name}. Your driver stops at the stand, not at your door.`}>
+      <Row>
+        <span className="min-w-0 flex-1">
+          <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
+          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.name}`}</span>
+        </span>
+      </Row>
+    </Group>
+  );
+}
+
 // ---- Where are you, and where to ----
 
 export default function RidePage() {
@@ -79,6 +102,12 @@ export default function RidePage() {
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />
       </Group>
+
+      {fields.pickup.place ? (
+        <div className="mt-6">
+          <PickupPoint place={fields.pickup.place} />
+        </div>
+      ) : null}
 
       <div className="mt-6">{shown.place ? null : <PlaceResults key={active} text={shown.text} onPick={pick} />}</div>
 
