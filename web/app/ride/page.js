@@ -1,10 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, ErrorText } from '../../components/ui.js';
 import { useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
+
+const RideMap = dynamic(() => import('../../components/RideMap.js'), {
+  ssr: false,
+  loading: () => <div className="h-56 rounded-cell bg-fill" />,
+});
 
 const KIND_LABELS = { STAND: 'Tesla stand', LANDMARK: 'Landmark' };
 
@@ -60,7 +66,7 @@ function PickupPoint({ place }) {
       <Row>
         <span className="min-w-0 flex-1">
           <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
-          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.name}`}</span>
+          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.kind === 'PIN' ? 'your pin' : place.name}`}</span>
         </span>
       </Row>
     </Group>
@@ -75,6 +81,7 @@ export default function RidePage() {
   const logout = useLogout();
   const [active, setActive] = useState('pickup');
   const [fields, setFields] = useState({ pickup: { text: '', place: null }, drop: { text: '', place: null } });
+  const nearest = useNearestStand(fields.pickup.place);
 
   useEffect(() => {
     if (isPending) return;
@@ -90,14 +97,19 @@ export default function RidePage() {
     setFields((f) => ({ ...f, [active]: { text: place.name, place } }));
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
+  const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
       <h1 className="text-large-title">Where to?</h1>
-      <p className="mt-1 text-subhead text-label-secondary">Hi {me.name}. Pick where you are and where you are going.</p>
 
-      <Group className="mt-8">
+      <div className="mt-6">
+        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} onTap={dropPin} />
+      </div>
+      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place, or tap the map to drop a pin.</p>
+
+      <Group className="mt-6">
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />
