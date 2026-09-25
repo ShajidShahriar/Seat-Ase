@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideRequests, rideEvents, rides, places, zones } from '../db/schema.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const BANANI_LAT = 23.7937;
 const BANANI_LNG = 90.4076;
@@ -28,7 +37,7 @@ beforeEach(async () => {
 });
 
 async function driverAgent(name, phone, nid, capacity = 3) {
-  const agent = request.agent(app);
+  const agent = request.agent(api);
   await agent.post('/auth/signup').send({ name, phone, password: 'password123', role: 'DRIVER', gender: 'MALE', nid });
   await agent.post('/driver/vehicle').send({ name: 'Bullet', registrationNo: `REG-${phone}`, capacity });
   await agent.post('/driver/online').send({ zoneId: bananiZoneId });
@@ -36,7 +45,7 @@ async function driverAgent(name, phone, nid, capacity = 3) {
 }
 
 async function passengerAgent(name, phone, gender, nid) {
-  const agent = request.agent(app);
+  const agent = request.agent(api);
   await agent.post('/auth/signup').send({ name, phone, password: 'password123', role: 'PASSENGER', gender, nid });
   const sendRes = await agent.post('/auth/otp/send');
   await agent.post('/auth/otp/verify').send({ code: sendRes.body.demoCode });

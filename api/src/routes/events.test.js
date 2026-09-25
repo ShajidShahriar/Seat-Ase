@@ -11,6 +11,7 @@ import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideRequests, rideEvents, rides, zones } from '../db/schema.js';
 import { connectionCount } from '../realtime/notify.js';
 import { nudge } from '../realtime/nudges.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
 
 const BANANI = { lat: 23.7937, lng: 90.4076 };
 const MOHAKHALI = { lat: 23.7805, lng: 90.4053 };
@@ -21,14 +22,15 @@ let bananiZoneId;
 const openStreams = [];
 
 beforeAll(async () => {
-  server = app.listen(0);
-  baseUrl = `http://localhost:${server.address().port}`;
+  server = await listenOnLoopback(app);
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
   const [banani] = await db.select().from(zones).where(eq(zones.name, 'Banani'));
   bananiZoneId = banani.id;
 });
 
-afterAll(() => {
-  server.close();
+afterAll(async () => {
+  for (const stream of openStreams.splice(0)) stream.close();
+  await closeLoopbackServers();
 });
 
 beforeEach(async () => {
@@ -56,27 +58,27 @@ function cookieFrom(res) {
 }
 
 async function signupDriver(name, phone, nid) {
-  const res = await request(app)
+  const res = await request(server)
     .post('/auth/signup')
     .send({ name, phone, password: 'password123', role: 'DRIVER', gender: 'MALE', nid });
   const cookie = cookieFrom(res);
-  await request(app).post('/driver/vehicle').set('Cookie', cookie).send({ name, registrationNo: `REG-${phone}`, capacity: 3 });
-  await request(app).post('/driver/online').set('Cookie', cookie).send({ zoneId: bananiZoneId });
+  await request(server).post('/driver/vehicle').set('Cookie', cookie).send({ name, registrationNo: `REG-${phone}`, capacity: 3 });
+  await request(server).post('/driver/online').set('Cookie', cookie).send({ zoneId: bananiZoneId });
   return { id: res.body.user.id, cookie };
 }
 
 async function signupPassenger(name, phone, gender, nid) {
-  const res = await request(app)
+  const res = await request(server)
     .post('/auth/signup')
     .send({ name, phone, password: 'password123', role: 'PASSENGER', gender, nid });
   const cookie = cookieFrom(res);
-  const sendRes = await request(app).post('/auth/otp/send').set('Cookie', cookie);
-  await request(app).post('/auth/otp/verify').set('Cookie', cookie).send({ code: sendRes.body.demoCode });
+  const sendRes = await request(server).post('/auth/otp/send').set('Cookie', cookie);
+  await request(server).post('/auth/otp/verify').set('Cookie', cookie).send({ code: sendRes.body.demoCode });
   return { id: res.body.user.id, cookie };
 }
 
 async function requestRide(passenger, key) {
-  const res = await request(app)
+  const res = await request(server)
     .post('/requests')
     .set('Cookie', passenger.cookie)
     .set('Idempotency-Key', key)
@@ -129,7 +131,7 @@ function nudgesOnly(stream) {
 
 describe('GET /events/stream', () => {
   it('rejects a request without a login cookie', async () => {
-    const res = await request(app).get('/events/stream');
+    const res = await request(server).get('/events/stream');
     expect(res.status).toBe(401);
   });
 
@@ -199,7 +201,7 @@ describe('live nudges', () => {
       { type: 'waiting-list.updated', action: 'REQUEST_CREATED', zoneId: bananiZoneId },
     ]);
 
-    const accept = await request(app).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
+    const accept = await request(server).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
     const rideId = accept.body.ride.id;
     await waitFor(() => nudgesOnly(streams.mokbul).length === 2);
 
@@ -224,14 +226,14 @@ describe('live nudges', () => {
     await openStream(nusrat, {
       onEvent: async (event) => {
         if (event.action === 'REQUEST_MATCHED' && event.type === 'booking.updated') {
-          const res = await request(app).get(`/requests/${nusratReq}`).set('Cookie', nusrat.cookie);
+          const res = await request(server).get(`/requests/${nusratReq}`).set('Cookie', nusrat.cookie);
           seenOnNudge = res.body.request.status;
         }
       },
     });
     await wait(50);
 
-    await request(app).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
+    await request(server).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
     await waitFor(() => seenOnNudge !== undefined);
     expect(seenOnNudge).toBe('MATCHED');
   });
@@ -242,15 +244,15 @@ describe('live nudges', () => {
     const rafiq = await signupPassenger('Rafiq', '01700000031', 'MALE', '2000000002');
     const nusratReq = await requestRide(nusrat, 'n1');
     const rafiqReq = await requestRide(rafiq, 'r1');
-    await request(app).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
-    const accept = await request(app).post(`/driver/ride/requests/${rafiqReq}/accept`).set('Cookie', jashim.cookie);
+    await request(server).post(`/driver/ride/requests/${nusratReq}/accept`).set('Cookie', jashim.cookie);
+    const accept = await request(server).post(`/driver/ride/requests/${rafiqReq}/accept`).set('Cookie', jashim.cookie);
     const rideId = accept.body.ride.id;
 
     const jashimStream = await openStream(jashim);
     const nusratStream = await openStream(nusrat);
     await wait(50);
 
-    await request(app).post(`/requests/${rafiqReq}/cancel`).set('Cookie', rafiq.cookie);
+    await request(server).post(`/requests/${rafiqReq}/cancel`).set('Cookie', rafiq.cookie);
     await waitFor(() => nudgesOnly(nusratStream).length === 1);
 
     expect(nudgesOnly(jashimStream)).toContainEqual({ type: 'ride.updated', action: 'REQUEST_CANCELLED', rideId });
@@ -267,7 +269,7 @@ describe('live nudges', () => {
     const nusratStream = await openStream(nusrat);
     await wait(50);
 
-    await request(app).get('/driver/requests').set('Cookie', jashim.cookie);
+    await request(server).get('/driver/requests').set('Cookie', jashim.cookie);
     await waitFor(() => nudgesOnly(nusratStream).length === 1);
     expect(nudgesOnly(nusratStream)[0]).toEqual({ type: 'booking.updated', action: 'REQUEST_EXPIRED', requestId: nusratReq });
   });

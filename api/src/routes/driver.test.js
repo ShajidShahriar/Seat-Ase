@@ -1,8 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, zones, rideEvents, rideRequests, rides } from '../db/schema.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const jashim = {
   name: 'Jashim',
@@ -23,7 +32,7 @@ const nusrat = {
 const bullet = { name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 };
 
 async function signedInAgent(user) {
-  const agent = request.agent(app);
+  const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
   return agent;
 }

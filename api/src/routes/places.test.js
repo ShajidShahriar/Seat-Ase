@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, zones, places, rideEvents, rideRequests, rides } from '../db/schema.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const nusrat = {
   name: 'Nusrat',
@@ -44,14 +53,14 @@ beforeEach(async () => {
 });
 
 async function signedInAgent(user) {
-  const agent = request.agent(app);
+  const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
   return agent;
 }
 
 describe('GET /places', () => {
   it('requires login', async () => {
-    const res = await request(app).get('/places?q=banani');
+    const res = await request(api).get('/places?q=banani');
     expect(res.status).toBe(401);
   });
 

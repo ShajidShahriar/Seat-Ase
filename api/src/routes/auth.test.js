@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { eq } from 'drizzle-orm';
@@ -12,6 +12,15 @@ import { errorHandler } from '../middleware/errorHandler.js';
 import { loginSchema } from '@seat-ase/shared';
 import * as authController from '../controllers/authController.js';
 import cookieParser from 'cookie-parser';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const jashim = {
   name: 'Jashim',
@@ -32,7 +41,7 @@ beforeEach(async () => {
 
 describe('POST /auth/signup', () => {
   it('creates a user and sets a session cookie', async () => {
-    const res = await request(app).post('/auth/signup').send(jashim);
+    const res = await request(api).post('/auth/signup').send(jashim);
     expect(res.status).toBe(201);
     expect(res.body.user.phone).toBe('+8801700000010');
     expect(res.body.user.passwordHash).toBeUndefined();
@@ -40,15 +49,15 @@ describe('POST /auth/signup', () => {
   });
 
   it('rejects a second signup with the same phone in a different format', async () => {
-    await request(app).post('/auth/signup').send(jashim);
-    const res = await request(app)
+    await request(api).post('/auth/signup').send(jashim);
+    const res = await request(api)
       .post('/auth/signup')
       .send({ ...jashim, phone: '+8801700000010' });
     expect(res.status).toBe(409);
   });
 
   it('rejects a weak password before touching the database', async () => {
-    const res = await request(app).post('/auth/signup').send({ ...jashim, password: 'short' });
+    const res = await request(api).post('/auth/signup').send({ ...jashim, password: 'short' });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_FAILED');
   });
@@ -61,14 +70,14 @@ describe('POST /auth/signup', () => {
     ['18 digits', '123456789012345678', false],
     ['contains letters', '12345abc90', false],
   ])('NID with %s is %s', async (_label, nid, shouldAccept) => {
-    const res = await request(app)
+    const res = await request(api)
       .post('/auth/signup')
       .send({ ...jashim, phone: `0170000${nid.slice(0, 4)}`, nid });
     expect(res.status).toBe(shouldAccept ? 201 : 400);
   });
 
   it('returns gender and verification flags, but never the nid itself', async () => {
-    const res = await request(app).post('/auth/signup').send(jashim);
+    const res = await request(api).post('/auth/signup').send(jashim);
     expect(res.body.user.gender).toBe('MALE');
     expect(res.body.user.nidVerified).toBe(true);
     expect(res.body.user.phoneVerified).toBe(false);
@@ -76,15 +85,15 @@ describe('POST /auth/signup', () => {
   });
 
   it('rejects a second signup that reuses the same NID with a different phone', async () => {
-    await request(app).post('/auth/signup').send(jashim);
-    const res = await request(app)
+    await request(api).post('/auth/signup').send(jashim);
+    const res = await request(api)
       .post('/auth/signup')
       .send({ ...jashim, name: 'Fake Jashim', phone: '01799999999' });
     expect(res.status).toBe(409);
   });
 
   it('stores only a hash and the last 4 digits of the NID, never the full number', async () => {
-    await request(app).post('/auth/signup').send(jashim);
+    await request(api).post('/auth/signup').send(jashim);
     const [user] = await db.select().from(users).where(eq(users.phone, '+8801700000010'));
     expect(user.nidLast4).toBe('7890');
     expect(user.nidHash).not.toBe(jashim.nid);
@@ -94,17 +103,17 @@ describe('POST /auth/signup', () => {
 
 describe('POST /auth/login', () => {
   beforeEach(async () => {
-    await request(app).post('/auth/signup').send(jashim);
+    await request(api).post('/auth/signup').send(jashim);
   });
 
   it('logs in with the phone in a different format than signup used', async () => {
-    const res = await request(app).post('/auth/login').send({ phone: '+8801700000010', password: 'password123' });
+    const res = await request(api).post('/auth/login').send({ phone: '+8801700000010', password: 'password123' });
     expect(res.status).toBe(200);
   });
 
   it('gives the same error for a wrong password and an unknown phone', async () => {
-    const wrongPassword = await request(app).post('/auth/login').send({ phone: jashim.phone, password: 'wrongpass' });
-    const unknownPhone = await request(app).post('/auth/login').send({ phone: '01799999999', password: 'whatever' });
+    const wrongPassword = await request(api).post('/auth/login').send({ phone: jashim.phone, password: 'wrongpass' });
+    const unknownPhone = await request(api).post('/auth/login').send({ phone: '01799999999', password: 'whatever' });
 
     expect(wrongPassword.status).toBe(401);
     expect(unknownPhone.status).toBe(401);
@@ -114,12 +123,12 @@ describe('POST /auth/login', () => {
 
 describe('GET /auth/me', () => {
   it('requires a session cookie', async () => {
-    const res = await request(app).get('/auth/me');
+    const res = await request(api).get('/auth/me');
     expect(res.status).toBe(401);
   });
 
   it('returns the logged-in user', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send(jashim);
     const res = await agent.get('/auth/me');
     expect(res.status).toBe(200);
@@ -129,7 +138,7 @@ describe('GET /auth/me', () => {
 
 describe('POST /auth/logout', () => {
   it('clears the session so /auth/me stops working', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send(jashim);
     await agent.post('/auth/logout');
     const res = await agent.get('/auth/me');
@@ -148,20 +157,20 @@ describe('requireRole', () => {
   }
 
   it('blocks a passenger from a driver-only route', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send({ ...jashim, role: 'PASSENGER', phone: '01722222222' });
     const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
 
-    const res = await request(appWithDriverOnlyRoute()).get('/driver-only').set('Cookie', cookie);
+    const res = await request(await listenOnLoopback(appWithDriverOnlyRoute())).get('/driver-only').set('Cookie', cookie);
     expect(res.status).toBe(403);
   });
 
   it('lets a driver through', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send({ ...jashim, phone: '01733333333' });
     const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
 
-    const res = await request(appWithDriverOnlyRoute()).get('/driver-only').set('Cookie', cookie);
+    const res = await request(await listenOnLoopback(appWithDriverOnlyRoute())).get('/driver-only').set('Cookie', cookie);
     expect(res.status).toBe(200);
   });
 });
@@ -177,7 +186,7 @@ describe('rate limiting', () => {
   }
 
   it('allows exactly the configured number of attempts, then blocks the rest', async () => {
-    const testApp = appWithRealLimiter(5);
+    const testApp = await listenOnLoopback(appWithRealLimiter(5));
     const attempts = await Promise.all(
       Array.from({ length: 8 }, () =>
         request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' }),
@@ -192,7 +201,7 @@ describe('rate limiting', () => {
   });
 
   it('keys by phone, so a different phone is unaffected', async () => {
-    const testApp = appWithRealLimiter(1);
+    const testApp = await listenOnLoopback(appWithRealLimiter(1));
     await request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' });
     const blocked = await request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' });
     const otherPhone = await request(testApp).post('/login').send({ phone: '01788888888', password: 'wrongpass' });

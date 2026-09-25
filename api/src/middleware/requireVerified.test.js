@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -8,6 +8,15 @@ import { users, vehicles, rideEvents, rideRequests, rides } from '../db/schema.j
 import { requireAuth } from './auth.js';
 import { requireVerified } from './requireVerified.js';
 import { errorHandler } from './errorHandler.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const nusrat = {
   name: 'Nusrat',
@@ -36,23 +45,23 @@ beforeEach(async () => {
 
 describe('requireVerified', () => {
   it('blocks a user who has not verified their phone', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send(nusrat);
     const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
 
-    const res = await request(verifiedOnlyApp()).get('/verified-only').set('Cookie', cookie);
+    const res = await request(await listenOnLoopback(verifiedOnlyApp())).get('/verified-only').set('Cookie', cookie);
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('PHONE_NOT_VERIFIED');
   });
 
   it('takes effect immediately after verifying, without a new login', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send(nusrat);
     const sendRes = await agent.post('/auth/otp/send');
     await agent.post('/auth/otp/verify').send({ code: sendRes.body.demoCode });
 
     const cookie = (await agent.get('/auth/me')).headers['set-cookie'];
-    const res = await request(verifiedOnlyApp()).get('/verified-only').set('Cookie', cookie);
+    const res = await request(await listenOnLoopback(verifiedOnlyApp())).get('/verified-only').set('Cookie', cookie);
     expect(res.status).toBe(200);
   });
 });
