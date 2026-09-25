@@ -36,5 +36,17 @@ services:
     ports:
       - "4000:4000"
 
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        API_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
 volumes:
   pgdata: # named volume: Jashim, Nusrat & co. survive `docker compose down`/`up`
