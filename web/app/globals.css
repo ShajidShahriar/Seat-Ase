@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+/* ---- Design tokens: Apple system type and colours, Uber black and white ---- */
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif;
+
+  --color-label: #000000;
+  --color-label-secondary: rgb(60 60 67 / 0.6);
+  --color-label-tertiary: rgb(60 60 67 / 0.3);
+  --color-separator: rgb(60 60 67 / 0.29);
+  --color-fill: rgb(120 120 128 / 0.12);
+
+  --color-background: #ffffff;
+  --color-grouped: #f2f2f7;
+  --color-grouped-cell: #ffffff;
+
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+
+  --color-green: #248a3d;
+  --color-green-fill: #34c759;
+  --color-red: #d70015;
+  --color-blue: #0040dd;
+
+  --radius-cell: 12px;
+  --radius-control: 12px;
+  --radius-sheet: 20px;
+
+  --text-large-title: 34px;
+  --text-large-title--line-height: 41px;
+  --text-large-title--font-weight: 700;
+  --text-title: 22px;
+  --text-title--line-height: 28px;
+  --text-title--font-weight: 700;
+  --text-headline: 17px;
+  --text-headline--line-height: 22px;
+  --text-headline--font-weight: 600;
+  --text-body: 17px;
+  --text-body--line-height: 22px;
+  --text-subhead: 15px;
+  --text-subhead--line-height: 20px;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+}
+
+/* ---- Page defaults ---- */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-grouped font-sans text-body text-label;
+}
