@@ -8,6 +8,7 @@ import { getZoneDistanceKm } from './placesService.js';
 import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha } from './fareService.js';
 import { recordEvent } from './rideEventService.js';
 import { ACTIVE_BOOKING_STATUSES, expireStaleRequests, autoCloseStaleRides } from './rideRequestService.js';
+import { nudge } from '../realtime/nudges.js';
 
 const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
 const REQUEST_EXPIRY_MINUTES = 15;
@@ -185,7 +186,13 @@ async function acceptOnce(driverId, requestId) {
 }
 
 export async function acceptRequest(driverId, requestId) {
-  return withDeadlockRetry(() => acceptOnce(driverId, requestId));
+  const result = await withDeadlockRetry(() => acceptOnce(driverId, requestId));
+  await nudge('REQUEST_MATCHED', {
+    rideId: result.ride.id,
+    requestIds: [result.request.id],
+    zoneId: result.request.pickupZoneId,
+  });
+  return result;
 }
 
 function serializeWaitingRequest(row, fit) {
@@ -259,7 +266,7 @@ export async function listWaitingRequests(driverId) {
 }
 
 export async function cancelRide(driverId) {
-  return db.transaction(async (tx) => {
+  const { cancelled, requestIds } = await db.transaction(async (tx) => {
     const [vehicle] = await tx.select().from(vehicles).where(eq(vehicles.driverId, driverId));
     if (!vehicle) {
       throw new AppError(404, 'NOT_FOUND', 'No vehicle found.');
@@ -298,8 +305,11 @@ export async function cancelRide(driverId) {
     }
 
     const [cancelled] = await tx.update(rides).set({ status: 'CANCELLED' }).where(eq(rides.id, ride.id)).returning();
-    return cancelled;
+    return { cancelled, requestIds: bookings.map((b) => b.id) };
   });
+
+  await nudge('RIDE_CANCELLED', { rideId: cancelled.id, requestIds, zoneId: cancelled.zoneId });
+  return cancelled;
 }
 
 async function getOwnedActiveRide(tx, driverId, allowedStatuses) {
@@ -319,7 +329,7 @@ async function getOwnedActiveRide(tx, driverId, allowedStatuses) {
 }
 
 export async function arriveRide(driverId) {
-  return db.transaction(async (tx) => {
+  const arrived = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['OPEN']);
 
     const active = await activeBookingsForRide(tx, ride.id);
@@ -344,10 +354,13 @@ export async function arriveRide(driverId) {
     );
     return updatedRide;
   });
+
+  await nudge('ARRIVED', { rideId: arrived.id });
+  return arrived;
 }
 
 export async function boardPassenger(driverId, requestId) {
-  return db.transaction(async (tx) => {
+  const boarded = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
 
     const [booking] = await tx
@@ -362,10 +375,13 @@ export async function boardPassenger(driverId, requestId) {
     await recordEvent({ rideId: ride.id, requestId: booking.id, actorId: driverId, type: 'BOARDED' }, tx);
     return booking;
   });
+
+  await nudge('BOARDED', { rideId: boarded.rideId, requestIds: [boarded.id] });
+  return boarded;
 }
 
 export async function markNoShow(driverId, requestId) {
-  return db.transaction(async (tx) => {
+  const noShow = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
 
     const waitCutoff = new Date(Date.now() - NO_SHOW_WAIT_MINUTES * 60 * 1000);
@@ -409,10 +425,13 @@ export async function markNoShow(driverId, requestId) {
     }
     return updated;
   });
+
+  await nudge('NO_SHOW', { rideId: noShow.rideId, requestIds: [noShow.id] });
+  return noShow;
 }
 
 export async function startRide(driverId) {
-  return db.transaction(async (tx) => {
+  const { started, leftBehindIds } = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['ARRIVED']);
 
     const bookings = await tx
@@ -478,12 +497,19 @@ export async function startRide(driverId) {
       .where(eq(rides.id, ride.id))
       .returning();
 
-    return updatedRide;
+    return { started: updatedRide, leftBehindIds: notBoarded.map((b) => b.id) };
   });
+
+  await nudge('STARTED', {
+    rideId: started.id,
+    requestIds: leftBehindIds,
+    zoneId: leftBehindIds.length > 0 ? started.zoneId : undefined,
+  });
+  return started;
 }
 
 export async function dropPassenger(driverId, requestId) {
-  return db.transaction(async (tx) => {
+  const dropped = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['STARTED']);
 
     const [booking] = await tx
@@ -518,6 +544,9 @@ export async function dropPassenger(driverId, requestId) {
 
     return { ride: updatedRide, request: booking };
   });
+
+  await nudge('DROPPED', { rideId: dropped.ride.id, requestIds: [dropped.request.id] });
+  return dropped;
 }
 
 export async function getDriverRide(driverId) {

@@ -5,6 +5,7 @@ import { AppError } from '../lib/AppError.js';
 import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
 import { recordEvent } from './rideEventService.js';
+import { nudge } from '../realtime/nudges.js';
 
 export const ACTIVE_BOOKING_STATUSES = ['REQUESTED', 'MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
 const EXPIRY_MINUTES = 15;
@@ -13,10 +14,16 @@ const AUTO_CLOSE_HOURS = 3;
 
 export async function expireStaleRequests() {
   const cutoff = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
-  await db
+  const expired = await db
     .update(rideRequests)
     .set({ status: 'EXPIRED' })
-    .where(and(eq(rideRequests.status, 'REQUESTED'), lt(rideRequests.queuedAt, cutoff)));
+    .where(and(eq(rideRequests.status, 'REQUESTED'), lt(rideRequests.queuedAt, cutoff)))
+    .returning({ id: rideRequests.id, pickupZoneId: rideRequests.pickupZoneId });
+
+  const byZone = Map.groupBy(expired, (r) => r.pickupZoneId);
+  for (const [zoneId, rows] of byZone) {
+    await nudge('REQUEST_EXPIRED', { zoneId, requestIds: rows.map((r) => r.id) });
+  }
 }
 
 export async function autoCloseStaleRides() {
@@ -25,11 +32,13 @@ export async function autoCloseStaleRides() {
 
   for (const ride of staleRides) {
     await db.update(rides).set({ status: 'COMPLETED', completedAt: new Date() }).where(eq(rides.id, ride.id));
-    await db
+    const closed = await db
       .update(rideRequests)
       .set({ status: 'COMPLETED', droppedAt: new Date() })
-      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'IN_PROGRESS')));
+      .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'IN_PROGRESS')))
+      .returning({ id: rideRequests.id });
     await recordEvent({ rideId: ride.id, type: 'RIDE_AUTO_CLOSED', fromStatus: 'STARTED', toStatus: 'COMPLETED' });
+    await nudge('RIDE_AUTO_CLOSED', { rideId: ride.id, requestIds: closed.map((r) => r.id) });
   }
 }
 
@@ -93,6 +102,7 @@ export async function createRequest(passenger, body, idempotencyKey) {
     .returning();
 
   await recordEvent({ requestId: inserted.id, actorId: passenger.id, type: 'REQUESTED', toStatus: 'REQUESTED' });
+  await nudge('REQUEST_CREATED', { requestIds: [inserted.id], zoneId: inserted.pickupZoneId });
 
   return { request: inserted, replay: false };
 }
@@ -117,7 +127,7 @@ export async function getOwnRequest(id, passengerId) {
 }
 
 export async function cancelRequest(id, passengerId) {
-  return db.transaction(async (tx) => {
+  const cancelled = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(rideRequests)
@@ -187,6 +197,13 @@ export async function cancelRequest(id, passengerId) {
 
     throw new AppError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled.');
   });
+
+  await nudge('REQUEST_CANCELLED', {
+    requestIds: [cancelled.id],
+    rideId: cancelled.rideId,
+    zoneId: cancelled.pickupZoneId,
+  });
+  return cancelled;
 }
 
 export async function getOwnTimeline(id, passengerId) {

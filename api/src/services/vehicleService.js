@@ -46,6 +46,10 @@ export async function goOffline(driverId) {
   return updated;
 }
 
+export async function touchLastSeen(driverId) {
+  await db.update(vehicles).set({ lastSeenAt: new Date() }).where(eq(vehicles.driverId, driverId));
+}
+
 export async function onlineCountInZone(zoneId) {
   const staleCutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60 * 1000);
   const rows = await db

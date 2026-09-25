@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideRequests, rideEvents, rides, places } from '../db/schema.js';
+import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+
+let api;
+
+beforeAll(async () => {
+  api = await listenOnLoopback(app);
+});
+
+afterAll(closeLoopbackServers);
 
 const nusrat = {
   name: 'Nusrat',
@@ -51,7 +60,7 @@ function nusratToMohakhaliBody(overrides = {}) {
 }
 
 async function verifiedAgent(user) {
-  const agent = request.agent(app);
+  const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
   const sendRes = await agent.post('/auth/otp/send');
   await agent.post('/auth/otp/verify').send({ code: sendRes.body.demoCode });
@@ -60,7 +69,7 @@ async function verifiedAgent(user) {
 
 describe('POST /requests', () => {
   it('rejects an unverified passenger', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(api);
     await agent.post('/auth/signup').send(nusrat);
     const res = await agent.post('/requests').set('Idempotency-Key', 'k1').send(nusratToMohakhaliBody());
     expect(res.status).toBe(403);
