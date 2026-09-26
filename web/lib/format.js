@@ -12,3 +12,9 @@ const DHAKA_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', da
 export function formatDhakaTime(value) {
   return DHAKA_TIME.format(new Date(value));
 }
+
+const DHAKA_CLOCK_MS = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hour12: false });
+
+export function formatDhakaClockMs(value) {
+  return DHAKA_CLOCK_MS.format(new Date(value));
+}

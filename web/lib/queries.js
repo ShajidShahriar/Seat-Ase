@@ -253,3 +253,11 @@ export function useTimeline(id) {
     queryFn: async () => (await api.get(`/requests/${id}/timeline`)).timeline,
   });
 }
+
+// ---- Demo: run a scenario on the server (needs the demo key) ----
+
+export function useRunScenario() {
+  return useMutation({
+    mutationFn: ({ name, key }) => api.post(`/dev/scenario/${name}`, undefined, { 'X-Demo-Key': key }),
+  });
+}

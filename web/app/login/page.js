@@ -97,6 +97,16 @@ export default function LoginPage() {
           </div>
         ))}
       </Group>
+
+      <Group header="For reviewers" className="mt-8">
+        <Row onClick={() => router.push('/seat-race')}>
+          <span className="flex-1">
+            <span className="block">Seat race</span>
+            <span className="block text-subhead text-label-secondary">Two accepts, one last seat, run live</span>
+          </span>
+          <Chevron />
+        </Row>
+      </Group>
     </main>
   );
 }
