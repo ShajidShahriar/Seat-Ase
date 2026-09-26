@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addVehicleSchema } from '@seat-ase/shared';
-import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
+import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented, Loading, QueryError } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
-import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import RequestCard from '../../components/RequestCard.js';
+import DriverRide from '../../components/DriverRide.js';
+import { formatDhakaTime } from '../../lib/format.js';
+import { useAddVehicle, useGoOffline, useDriverHistory, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -53,13 +56,13 @@ function VehicleForm() {
   );
 }
 
-// ---- Waiting passengers: the empty state now, ride cards arrive in a later phase ----
+// ---- Waiting passengers: the empty state, or one card per request ----
 
 function RequestList({ areaName }) {
   const requests = useDriverRequests({ enabled: true });
 
-  if (requests.isPending) return null;
-  if (requests.isError) return <ErrorText>{requests.error.message}</ErrorText>;
+  if (requests.isPending) return <Loading>Loading requests</Loading>;
+  if (requests.isError) return <QueryError error={requests.error} onRetry={requests.refetch} />;
 
   if (requests.data.length === 0) {
     return (
@@ -72,19 +75,22 @@ function RequestList({ areaName }) {
     );
   }
 
-  const count = requests.data.length;
+  const ordered = [...requests.data].sort((a, b) => Number(b.fits) - Number(a.fits) || new Date(a.queuedAt) - new Date(b.queuedAt));
   return (
-    <Group header="Requests">
-      <Row>
-        <span className="flex-1">{count === 1 ? '1 passenger waiting' : `${count} passengers waiting`}</span>
-      </Row>
-    </Group>
+    <section>
+      <h2 className="px-4 pb-1.5 text-footnote uppercase text-label-secondary">Requests</h2>
+      <div className="flex flex-col gap-3">
+        {ordered.map((request) => (
+          <RequestCard key={request.id} request={request} />
+        ))}
+      </div>
+    </section>
   );
 }
 
 // ---- Online toggle: pick the area you are in, then go online there ----
 
-function OnlinePanel({ vehicle }) {
+function OnlinePanel({ vehicle, ride }) {
   const zones = useZones();
   const goOnline = useGoOnline();
   const goOffline = useGoOffline();
@@ -95,6 +101,7 @@ function OnlinePanel({ vehicle }) {
   const currentName = zones.data?.find((zone) => zone.id === vehicle.currentZoneId)?.name;
   const moving = vehicle.isOnline && zoneId !== vehicle.currentZoneId;
   const error = goOnline.error ?? goOffline.error;
+  const showRequests = vehicle.isOnline && (!ride || ride.status === 'OPEN');
 
   function pick(id) {
     goOnline.reset();
@@ -104,40 +111,70 @@ function OnlinePanel({ vehicle }) {
 
   return (
     <div className="mt-8 flex flex-col gap-8">
-      {vehicle.isOnline ? <RequestList areaName={currentName} /> : null}
+      {showRequests ? <RequestList areaName={currentName} /> : null}
 
-      {vehicle.isOnline ? (
-        <Group>
-          <Row onClick={() => goOffline.mutate()} disabled={goOffline.isPending}>
-            <span className="flex-1 text-red">Go offline</span>
-          </Row>
-        </Group>
-      ) : null}
+      {ride ? null : (
+        <>
+          {vehicle.isOnline ? (
+            <Group>
+              <Row onClick={() => goOffline.mutate()} disabled={goOffline.isPending}>
+                <span className="flex-1 text-red">Go offline</span>
+              </Row>
+            </Group>
+          ) : null}
 
-      <Group
-        header="Your area"
-        footer={vehicle.isOnline ? `Passengers in ${currentName ?? 'your area'} can see you are online.` : 'Passengers near this area can see you once you go online.'}
-      >
-        {zones.data?.map((zone, index) => (
-          <div key={zone.id}>
-            {index > 0 ? <Separator /> : null}
-            <Row onClick={() => pick(zone.id)}>
-              <span className="flex-1">{zone.name}</span>
-              {zoneId === zone.id ? <Checkmark /> : null}
-            </Row>
+          <Group
+            header="Your area"
+            footer={vehicle.isOnline ? `Passengers in ${currentName ?? 'your area'} can see you are online.` : 'Passengers near this area can see you once you go online.'}
+          >
+            {zones.data?.map((zone, index) => (
+              <div key={zone.id}>
+                {index > 0 ? <Separator /> : null}
+                <Row onClick={() => pick(zone.id)}>
+                  <span className="flex-1">{zone.name}</span>
+                  {zoneId === zone.id ? <Checkmark /> : null}
+                </Row>
+              </div>
+            ))}
+          </Group>
+
+          <div>
+            {!vehicle.isOnline || moving ? (
+              <PrimaryButton disabled={!zoneId} loading={goOnline.isPending} onClick={() => goOnline.mutate(zoneId, { onSuccess: () => setPicked(null) })}>
+                {moving ? `Move to ${zoneName}` : zoneName ? `Go online in ${zoneName}` : 'Go online'}
+              </PrimaryButton>
+            ) : null}
+            <ErrorText>{error?.message}</ErrorText>
           </div>
-        ))}
-      </Group>
-
-      <div>
-        {!vehicle.isOnline || moving ? (
-          <PrimaryButton disabled={!zoneId} loading={goOnline.isPending} onClick={() => goOnline.mutate(zoneId, { onSuccess: () => setPicked(null) })}>
-            {moving ? `Move to ${zoneName}` : zoneName ? `Go online in ${zoneName}` : 'Go online'}
-          </PrimaryButton>
-        ) : null}
-        <ErrorText>{error?.message}</ErrorText>
-      </div>
+        </>
+      )}
     </div>
+  );
+}
+
+// ---- Past rides, newest first, in Dhaka time ----
+
+function RideHistory() {
+  const history = useDriverHistory({ enabled: true });
+  const zones = useZones();
+
+  if (!history.data || history.data.length === 0) return null;
+
+  return (
+    <Group className="mt-8" header="Recent rides">
+      {history.data.slice(0, 5).map((ride, index) => (
+        <div key={ride.id}>
+          {index > 0 ? <Separator /> : null}
+          <Row>
+            <span className="min-w-0 flex-1">
+              <span className="block">{zones.data?.find((zone) => zone.id === ride.zoneId)?.name}</span>
+              <span className="block text-footnote text-label-secondary">{formatDhakaTime(ride.createdAt)}</span>
+            </span>
+            <span className={ride.status === 'COMPLETED' ? 'text-green' : 'text-label-secondary'}>{ride.status === 'COMPLETED' ? 'Completed' : 'Cancelled'}</span>
+          </Row>
+        </div>
+      ))}
+    </Group>
   );
 }
 
@@ -148,12 +185,19 @@ export default function DriverPage() {
   const { data: me, isPending: meLoading } = useMe();
   const vehicle = useVehicle();
   const logout = useLogout();
+  const driverRide = useDriverRide({ enabled: Boolean(vehicle.data) });
+  const [tripDone, setTripDone] = useState(false);
 
   useEffect(() => {
     if (meLoading) return;
     if (!me) router.replace('/login');
     else if (me.role !== 'DRIVER') router.replace('/');
   }, [meLoading, me, router]);
+
+  const hasRide = Boolean(driverRide.data?.ride);
+  useEffect(() => {
+    if (hasRide) setTripDone(false);
+  }, [hasRide]);
 
   if (!me || me.role !== 'DRIVER') return null;
 
@@ -164,14 +208,24 @@ export default function DriverPage() {
         <p className="mt-1 text-subhead text-label-secondary">Passengers can only be matched with a registered car.</p>
       ) : null}
 
-      {vehicle.isPending ? null : vehicle.isError ? (
-        <ErrorText>{vehicle.error.message}</ErrorText>
+      {vehicle.isPending ? (
+        <Loading>Loading your car</Loading>
+      ) : vehicle.isError ? (
+        <QueryError error={vehicle.error} onRetry={vehicle.refetch} />
       ) : vehicle.data === null ? (
         <VehicleForm />
       ) : (
         <>
           <p className={`mt-1 text-subhead ${vehicle.data.isOnline ? 'text-green' : 'text-label-secondary'}`}>{vehicle.data.isOnline ? 'You are online' : 'You are offline'}</p>
-          <OnlinePanel vehicle={vehicle.data} />
+          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} onCompleted={() => setTripDone(true)} /> : null}
+          {tripDone && !driverRide.data?.ride ? (
+            <Group className="mt-8" footer="You are now in the area where you dropped the last passenger.">
+              <Row>
+                <span className="flex-1 text-green">Trip complete</span>
+              </Row>
+            </Group>
+          ) : null}
+          <OnlinePanel vehicle={vehicle.data} ride={driverRide.data?.ride} />
           <Group className="mt-8">
             <Row>
               <span className="flex-1">Plate</span>
@@ -183,6 +237,7 @@ export default function DriverPage() {
               <span className="text-label-secondary">{vehicle.data.capacity}</span>
             </Row>
           </Group>
+          <RideHistory />
         </>
       )}
 

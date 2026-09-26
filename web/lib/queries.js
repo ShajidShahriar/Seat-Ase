@@ -192,3 +192,64 @@ export function useCancelBooking() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['bookings'] }),
   });
 }
+
+// ---- Driver: the current ride, accepting requests, and the ride buttons ----
+
+export function useDriverRide({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'ride'],
+    queryFn: () => api.get('/driver/ride'),
+    enabled,
+  });
+}
+
+function useDriverAction(mutationFn) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['driver'] }),
+  });
+}
+
+export const useAcceptRequest = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/accept`));
+export const useArrive = () => useDriverAction(() => api.post('/driver/ride/arrived'));
+export const useCancelRide = () => useDriverAction(() => api.post('/driver/ride/cancel'));
+export const useBoard = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/board`));
+export const useNoShow = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/no-show`));
+export const useStart = () => useDriverAction(() => api.post('/driver/ride/start'));
+
+export function useDrop(onCompleted) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/driver/ride/requests/${id}/drop`),
+    onSuccess: (data) => {
+      if (data.ride.status === 'COMPLETED') onCompleted?.();
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['driver'] }),
+  });
+}
+
+export function useDriverHistory({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'history'],
+    queryFn: async () => (await api.get('/driver/history')).rides,
+    enabled,
+  });
+}
+
+// ---- Passenger: the Tesla and co-riders on my booking, and its timeline ----
+
+export function useRideInfo(id, { enabled }) {
+  return useQuery({
+    queryKey: ['bookings', 'ride', id],
+    queryFn: async () => (await api.get(`/requests/${id}/ride`)).ride,
+    enabled,
+  });
+}
+
+export function useTimeline(id) {
+  return useQuery({
+    queryKey: ['bookings', 'timeline', id],
+    queryFn: async () => (await api.get(`/requests/${id}/timeline`)).timeline,
+  });
+}
