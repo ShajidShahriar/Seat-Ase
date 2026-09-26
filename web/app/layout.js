@@ -1,5 +1,6 @@
 import './globals.css';
 import { Providers } from './providers.js';
+import SignedInAs from '../components/SignedInAs.js';
 
 export const metadata = {
   title: 'Seat Ase?',
@@ -16,7 +17,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <SignedInAs />
+          {children}
+        </Providers>
       </body>
     </html>
   );
