@@ -236,3 +236,20 @@ export function useDriverHistory({ enabled }) {
     enabled,
   });
 }
+
+// ---- Passenger: the Tesla and co-riders on my booking, and its timeline ----
+
+export function useRideInfo(id, { enabled }) {
+  return useQuery({
+    queryKey: ['bookings', 'ride', id],
+    queryFn: async () => (await api.get(`/requests/${id}/ride`)).ride,
+    enabled,
+  });
+}
+
+export function useTimeline(id) {
+  return useQuery({
+    queryKey: ['bookings', 'timeline', id],
+    queryFn: async () => (await api.get(`/requests/${id}/timeline`)).timeline,
+  });
+}

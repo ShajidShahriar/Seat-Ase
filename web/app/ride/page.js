@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText } from '../../components/ui.js';
-import { useBookings, useCancelBooking, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
+import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
 import RideOptions from '../../components/RideOptions.js';
-import { ACTIVE_STATUSES, STATUS_TITLES, newIdempotencyKey } from '../../lib/bookings.js';
+import ActiveBooking from '../../components/ActiveBooking.js';
+import { ACTIVE_STATUSES, newIdempotencyKey } from '../../lib/bookings.js';
 
 const RideMap = dynamic(() => import('../../components/RideMap.js'), {
   ssr: false,
@@ -72,47 +73,6 @@ function PickupPoint({ place }) {
         </span>
       </Row>
     </Group>
-  );
-}
-
-// ---- A booking that is already in progress: shown instead of the search form ----
-
-function ActiveBooking({ booking }) {
-  const zones = useZones();
-  const cancel = useCancelBooking();
-  const zoneName = (id) => zones.data?.find((zone) => zone.id === id)?.name;
-
-  return (
-    <>
-      <h1 className="text-large-title">{STATUS_TITLES[booking.status]}</h1>
-
-      <Group className="mt-8">
-        <Row>
-          <span className="flex-1">Route</span>
-          <span className="text-label-secondary">
-            {zoneName(booking.pickupZoneId)} to {zoneName(booking.dropZoneId)}
-          </span>
-        </Row>
-        <Separator />
-        <Row>
-          <span className="flex-1">Ride</span>
-          <span className="text-label-secondary">
-            {booking.rideType === 'PRIVATE' ? 'Private' : booking.womenOnly ? 'Women-only shared' : 'Shared'}, {booking.seats} {booking.seats === 1 ? 'seat' : 'seats'}
-          </span>
-        </Row>
-      </Group>
-
-      {booking.status === 'REQUESTED' ? (
-        <div className="mt-8">
-          <Group footer="Drivers in your area can see your request. It expires after 15 minutes.">
-            <Row onClick={() => cancel.mutate(booking.id)} disabled={cancel.isPending}>
-              <span className="flex-1 text-red">Cancel request</span>
-            </Row>
-          </Group>
-          <ErrorText>{cancel.error?.message}</ErrorText>
-        </div>
-      ) : null}
-    </>
   );
 }
 
