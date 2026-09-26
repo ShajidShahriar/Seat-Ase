@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadEnv } from './env.js';
+import { loadEnv, EXAMPLE_DEMO_KEY } from './env.js';
 import { showsDemoCode } from '../services/otpService.js';
 import { hashNid } from '../lib/nid.js';
 
@@ -22,13 +22,30 @@ describe('DEMO_MODE', () => {
   });
 });
 
+describe('DEMO_KEY (the /dev routes)', () => {
+  it('is not needed on a laptop or when demo mode is off', () => {
+    expect(() => loadEnv({ ...BASE, DEMO_MODE: 'true' })).not.toThrow();
+    expect(() => loadEnv(PRODUCTION)).not.toThrow();
+  });
+
+  it('refuses to start in production with demo mode on and no real key', () => {
+    expect(() => loadEnv({ ...PRODUCTION, DEMO_MODE: 'true' })).toThrow('DEMO_KEY');
+    expect(() => loadEnv({ ...PRODUCTION, DEMO_MODE: 'true', DEMO_KEY: 'too-short' })).toThrow('DEMO_KEY');
+    expect(() => loadEnv({ ...PRODUCTION, DEMO_MODE: 'true', DEMO_KEY: EXAMPLE_DEMO_KEY })).toThrow('DEMO_KEY');
+  });
+
+  it('starts in production with demo mode on and a key of at least 32 characters', () => {
+    expect(() => loadEnv({ ...PRODUCTION, DEMO_MODE: 'true', DEMO_KEY: 'a-real-demo-key-that-is-long-enough-123' })).not.toThrow();
+  });
+});
+
 describe('showing the OTP code instead of sending an SMS', () => {
   it('never shows it in production without DEMO_MODE', () => {
     expect(showsDemoCode(loadEnv(PRODUCTION))).toBe(false);
   });
 
   it('shows it in production when DEMO_MODE is on (the Docker and hosted demo)', () => {
-    expect(showsDemoCode(loadEnv({ ...PRODUCTION, DEMO_MODE: 'true' }))).toBe(true);
+    expect(showsDemoCode(loadEnv({ ...PRODUCTION, DEMO_MODE: 'true', DEMO_KEY: 'a-real-demo-key-that-is-long-enough-123' }))).toBe(true);
   });
 
   it('always shows it on a laptop or in tests', () => {

@@ -10,7 +10,7 @@ import { logger } from '../../lib/logger.js';
 
 const BCRYPT_COST = 10;
 
-async function seedDrivers() {
+export async function seedDrivers() {
   let usersAdded = 0;
   let vehiclesAdded = 0;
 
