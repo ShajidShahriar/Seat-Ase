@@ -28,6 +28,10 @@
     {
       "key": "rideId",
       "value": ""
+    },
+    {
+      "key": "demoKey",
+      "value": "local-docker-only-demo-key-never-use-online-0000"
     }
   ],
   "item": [
@@ -1662,6 +1666,171 @@
               ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "8. Seat race (needs DEMO_MODE and the demo key; run last, it resets the demo rides)",
+      "item": [
+        {
+          "name": "Without the key: 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dev/scenario/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dev",
+                "scenario",
+                "reset"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('asks for the key', () => pm.expect(pm.response.json().error.code).to.eql('DEMO_KEY_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Last seat: one seat left, two passengers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Demo-Key",
+                "value": "{{demoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dev/scenario/seat-race",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dev",
+                "scenario",
+                "seat-race"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('exactly one wins and one loses', () => pm.expect(body.contenders.map((c) => c.outcome).sort()).to.eql(['lost', 'won']));",
+                  "pm.test('two separate database connections, transactions overlapped', () => { pm.expect(body.distinctConnections).to.eql(true); pm.expect(body.overlapped).to.eql(true); });",
+                  "pm.test('seats add up', () => pm.expect(body.seatInvariantHolds).to.eql(true));",
+                  "pm.test('3 of 3 seats, never more', () => { pm.expect(body.ride.seatsTaken).to.eql(3); pm.expect(body.ride.capacity).to.eql(3); });",
+                  "pm.test('the log holds exactly two acceptances: Rafiq, then the winner', () => pm.expect(body.events.filter((e) => e.type === 'REQUEST_MATCHED')).to.have.lengthOf(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Two drivers, one request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Demo-Key",
+                "value": "{{demoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dev/scenario/two-drivers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dev",
+                "scenario",
+                "two-drivers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('exactly one wins and one loses', () => pm.expect(body.contenders.map((c) => c.outcome).sort()).to.eql(['lost', 'won']));",
+                  "pm.test('two separate database connections, transactions overlapped', () => { pm.expect(body.distinctConnections).to.eql(true); pm.expect(body.overlapped).to.eql(true); });",
+                  "pm.test('seats add up', () => pm.expect(body.seatInvariantHolds).to.eql(true));",
+                  "pm.test('exactly one ride created', () => pm.expect(body.ridesCreated).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset (rides, requests and events only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Demo-Key",
+                "value": "{{demoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dev/scenario/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dev",
+                "scenario",
+                "reset"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
