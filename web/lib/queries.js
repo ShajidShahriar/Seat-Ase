@@ -192,3 +192,25 @@ export function useCancelBooking() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['bookings'] }),
   });
 }
+
+// ---- Driver: the current ride, accepting requests, and the ride buttons ----
+
+export function useDriverRide({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'ride'],
+    queryFn: () => api.get('/driver/ride'),
+    enabled,
+  });
+}
+
+function useDriverAction(mutationFn) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['driver'] }),
+  });
+}
+
+export const useAcceptRequest = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/accept`));
+export const useArrive = () => useDriverAction(() => api.post('/driver/ride/arrived'));
+export const useCancelRide = () => useDriverAction(() => api.post('/driver/ride/cancel'));

@@ -6,7 +6,8 @@ import { addVehicleSchema } from '@seat-ase/shared';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
 import RequestCard from '../../components/RequestCard.js';
-import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import DriverRide from '../../components/DriverRide.js';
+import { useAddVehicle, useGoOffline, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -88,7 +89,7 @@ function RequestList({ areaName }) {
 
 // ---- Online toggle: pick the area you are in, then go online there ----
 
-function OnlinePanel({ vehicle }) {
+function OnlinePanel({ vehicle, ride }) {
   const zones = useZones();
   const goOnline = useGoOnline();
   const goOffline = useGoOffline();
@@ -99,6 +100,7 @@ function OnlinePanel({ vehicle }) {
   const currentName = zones.data?.find((zone) => zone.id === vehicle.currentZoneId)?.name;
   const moving = vehicle.isOnline && zoneId !== vehicle.currentZoneId;
   const error = goOnline.error ?? goOffline.error;
+  const showRequests = vehicle.isOnline && (!ride || ride.status === 'OPEN');
 
   function pick(id) {
     goOnline.reset();
@@ -108,39 +110,43 @@ function OnlinePanel({ vehicle }) {
 
   return (
     <div className="mt-8 flex flex-col gap-8">
-      {vehicle.isOnline ? <RequestList areaName={currentName} /> : null}
+      {showRequests ? <RequestList areaName={currentName} /> : null}
 
-      {vehicle.isOnline ? (
-        <Group>
-          <Row onClick={() => goOffline.mutate()} disabled={goOffline.isPending}>
-            <span className="flex-1 text-red">Go offline</span>
-          </Row>
-        </Group>
-      ) : null}
+      {ride ? null : (
+        <>
+          {vehicle.isOnline ? (
+            <Group>
+              <Row onClick={() => goOffline.mutate()} disabled={goOffline.isPending}>
+                <span className="flex-1 text-red">Go offline</span>
+              </Row>
+            </Group>
+          ) : null}
 
-      <Group
-        header="Your area"
-        footer={vehicle.isOnline ? `Passengers in ${currentName ?? 'your area'} can see you are online.` : 'Passengers near this area can see you once you go online.'}
-      >
-        {zones.data?.map((zone, index) => (
-          <div key={zone.id}>
-            {index > 0 ? <Separator /> : null}
-            <Row onClick={() => pick(zone.id)}>
-              <span className="flex-1">{zone.name}</span>
-              {zoneId === zone.id ? <Checkmark /> : null}
-            </Row>
+          <Group
+            header="Your area"
+            footer={vehicle.isOnline ? `Passengers in ${currentName ?? 'your area'} can see you are online.` : 'Passengers near this area can see you once you go online.'}
+          >
+            {zones.data?.map((zone, index) => (
+              <div key={zone.id}>
+                {index > 0 ? <Separator /> : null}
+                <Row onClick={() => pick(zone.id)}>
+                  <span className="flex-1">{zone.name}</span>
+                  {zoneId === zone.id ? <Checkmark /> : null}
+                </Row>
+              </div>
+            ))}
+          </Group>
+
+          <div>
+            {!vehicle.isOnline || moving ? (
+              <PrimaryButton disabled={!zoneId} loading={goOnline.isPending} onClick={() => goOnline.mutate(zoneId, { onSuccess: () => setPicked(null) })}>
+                {moving ? `Move to ${zoneName}` : zoneName ? `Go online in ${zoneName}` : 'Go online'}
+              </PrimaryButton>
+            ) : null}
+            <ErrorText>{error?.message}</ErrorText>
           </div>
-        ))}
-      </Group>
-
-      <div>
-        {!vehicle.isOnline || moving ? (
-          <PrimaryButton disabled={!zoneId} loading={goOnline.isPending} onClick={() => goOnline.mutate(zoneId, { onSuccess: () => setPicked(null) })}>
-            {moving ? `Move to ${zoneName}` : zoneName ? `Go online in ${zoneName}` : 'Go online'}
-          </PrimaryButton>
-        ) : null}
-        <ErrorText>{error?.message}</ErrorText>
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -152,6 +158,7 @@ export default function DriverPage() {
   const { data: me, isPending: meLoading } = useMe();
   const vehicle = useVehicle();
   const logout = useLogout();
+  const driverRide = useDriverRide({ enabled: Boolean(vehicle.data) });
 
   useEffect(() => {
     if (meLoading) return;
@@ -175,7 +182,8 @@ export default function DriverPage() {
       ) : (
         <>
           <p className={`mt-1 text-subhead ${vehicle.data.isOnline ? 'text-green' : 'text-label-secondary'}`}>{vehicle.data.isOnline ? 'You are online' : 'You are offline'}</p>
-          <OnlinePanel vehicle={vehicle.data} />
+          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} /> : null}
+          <OnlinePanel vehicle={vehicle.data} ride={driverRide.data?.ride} />
           <Group className="mt-8">
             <Row>
               <span className="flex-1">Plate</span>

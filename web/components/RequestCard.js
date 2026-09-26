@@ -1,9 +1,9 @@
 'use client';
 
-import { Group } from './ui.js';
+import { Group, PrimaryButton, ErrorText } from './ui.js';
 import { Seat } from './icons.js';
 import { useNow } from '../lib/useNow.js';
-import { useZones } from '../lib/queries.js';
+import { useAcceptRequest, useZones } from '../lib/queries.js';
 
 // ---- How long a request has been waiting, in words ----
 
@@ -17,6 +17,7 @@ function waitingText(queuedAt, now) {
 export default function RequestCard({ request }) {
   const zones = useZones();
   const now = useNow();
+  const accept = useAcceptRequest();
   const dropName = zones.data?.find((zone) => zone.id === request.dropZoneId)?.name;
   const isPrivate = request.rideType === 'PRIVATE';
 
@@ -47,7 +48,14 @@ export default function RequestCard({ request }) {
           <span>{details.join(', ')}</span>
         </div>
 
-        {request.fits ? null : (
+        {request.fits ? (
+          <div className="mt-3">
+            <PrimaryButton onClick={() => accept.mutate(request.id)} loading={accept.isPending}>
+              Accept
+            </PrimaryButton>
+            <ErrorText>{accept.error?.message}</ErrorText>
+          </div>
+        ) : (
           <div className="mt-3 border-t border-separator pt-2">
             <p className="text-footnote font-semibold text-red">Does not fit your ride</p>
             {request.reasons.map((reason) => (
