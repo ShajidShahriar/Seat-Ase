@@ -121,3 +121,20 @@ export function SmallButton({ children, tone = 'blue', loading = false, disabled
     </button>
   );
 }
+
+// ---- Waiting and failing: one look for every screen that loads data ----
+
+export function Loading({ children = 'Loading' }) {
+  return <p className="px-4 pt-6 text-subhead text-label-secondary">{children}</p>;
+}
+
+export function QueryError({ error, onRetry }) {
+  return (
+    <div className="pt-4">
+      <ErrorText>{error.message}</ErrorText>
+      <div className="px-4 pt-3">
+        <SmallButton onClick={onRetry}>Try again</SmallButton>
+      </div>
+    </div>
+  );
+}

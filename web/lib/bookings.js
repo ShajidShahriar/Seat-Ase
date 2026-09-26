@@ -39,3 +39,21 @@ export const EVENT_LABELS = {
   RIDE_AUTO_CANCELLED: 'The ride was cancelled',
   RIDE_AUTO_CLOSED: 'The trip was closed automatically',
 };
+
+// ---- Remembering which receipt was dismissed, so it stays gone after a reload ----
+
+const DISMISSED_KEY = 'seatase.dismissedReceipt';
+
+export function readDismissedReceipt() {
+  try {
+    return window.localStorage.getItem(DISMISSED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeDismissedReceipt(id) {
+  try {
+    window.localStorage.setItem(DISMISSED_KEY, id);
+  } catch {}
+}

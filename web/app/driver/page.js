@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addVehicleSchema } from '@seat-ase/shared';
-import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
+import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented, Loading, QueryError } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
 import RequestCard from '../../components/RequestCard.js';
 import DriverRide from '../../components/DriverRide.js';
@@ -61,8 +61,8 @@ function VehicleForm() {
 function RequestList({ areaName }) {
   const requests = useDriverRequests({ enabled: true });
 
-  if (requests.isPending) return null;
-  if (requests.isError) return <ErrorText>{requests.error.message}</ErrorText>;
+  if (requests.isPending) return <Loading>Loading requests</Loading>;
+  if (requests.isError) return <QueryError error={requests.error} onRetry={requests.refetch} />;
 
   if (requests.data.length === 0) {
     return (
@@ -208,8 +208,10 @@ export default function DriverPage() {
         <p className="mt-1 text-subhead text-label-secondary">Passengers can only be matched with a registered car.</p>
       ) : null}
 
-      {vehicle.isPending ? null : vehicle.isError ? (
-        <ErrorText>{vehicle.error.message}</ErrorText>
+      {vehicle.isPending ? (
+        <Loading>Loading your car</Loading>
+      ) : vehicle.isError ? (
+        <QueryError error={vehicle.error} onRetry={vehicle.refetch} />
       ) : vehicle.data === null ? (
         <VehicleForm />
       ) : (

@@ -3,17 +3,20 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { Group, Separator, Row, Field, PrimaryButton, ErrorText } from '../../components/ui.js';
+import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Loading, QueryError } from '../../components/ui.js';
 import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
 import RideOptions from '../../components/RideOptions.js';
 import ActiveBooking from '../../components/ActiveBooking.js';
-import { ACTIVE_STATUSES, newIdempotencyKey } from '../../lib/bookings.js';
+import { PastBookings, Receipt } from '../../components/TripHistory.js';
+import { ACTIVE_STATUSES, newIdempotencyKey, readDismissedReceipt, writeDismissedReceipt } from '../../lib/bookings.js';
 
 const RideMap = dynamic(() => import('../../components/RideMap.js'), {
   ssr: false,
   loading: () => <div className="h-56 rounded-cell bg-fill" />,
 });
+
+const RECEIPT_WINDOW_MS = 60 * 60 * 1000;
 
 const KIND_LABELS = { STAND: 'Tesla stand', LANDMARK: 'Landmark' };
 
@@ -158,6 +161,11 @@ export default function RidePage() {
   const { data: me, isPending } = useMe();
   const logout = useLogout();
   const bookings = useBookings();
+  const [dismissedReceipt, setDismissedReceipt] = useState(null);
+
+  useEffect(() => {
+    setDismissedReceipt(readDismissedReceipt());
+  }, []);
 
   useEffect(() => {
     if (isPending) return;
@@ -169,15 +177,27 @@ export default function RidePage() {
   if (!me || me.role === 'DRIVER' || !me.phoneVerified) return null;
 
   const activeBooking = bookings.data?.find((booking) => ACTIVE_STATUSES.includes(booking.status));
+  const finished = bookings.data?.filter((booking) => !ACTIVE_STATUSES.includes(booking.status)) ?? [];
+  const lastTrip = finished.find((booking) => booking.status === 'COMPLETED');
+  const showReceipt = lastTrip && lastTrip.id !== dismissedReceipt && Date.now() - new Date(lastTrip.droppedAt).getTime() < RECEIPT_WINDOW_MS;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
-      {bookings.isPending ? null : bookings.isError ? (
-        <ErrorText>{bookings.error.message}</ErrorText>
+      {bookings.isPending ? (
+        <Loading>Loading your rides</Loading>
+      ) : bookings.isError ? (
+        <QueryError error={bookings.error} onRetry={bookings.refetch} />
       ) : activeBooking ? (
         <ActiveBooking booking={activeBooking} />
       ) : (
-        <PlanRide me={me} />
+        <>
+          {showReceipt ? <Receipt booking={lastTrip} onDone={() => {
+                writeDismissedReceipt(lastTrip.id);
+                setDismissedReceipt(lastTrip.id);
+              }} /> : null}
+          <PlanRide me={me} />
+          <PastBookings bookings={finished} />
+        </>
       )}
 
       <Group className="mt-8">
