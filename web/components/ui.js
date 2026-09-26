@@ -106,3 +106,18 @@ export function Toggle({ checked, onChange, label }) {
     </button>
   );
 }
+
+// ---- A small pill button for actions inside a row ----
+
+export function SmallButton({ children, tone = 'blue', loading = false, disabled = false, ...props }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || loading}
+      className={`h-8 shrink-0 rounded-full bg-fill px-4 text-subhead font-semibold active:opacity-60 disabled:opacity-40 ${tone === 'red' ? 'text-red' : 'text-blue'}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}

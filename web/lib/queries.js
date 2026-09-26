@@ -214,3 +214,6 @@ function useDriverAction(mutationFn) {
 export const useAcceptRequest = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/accept`));
 export const useArrive = () => useDriverAction(() => api.post('/driver/ride/arrived'));
 export const useCancelRide = () => useDriverAction(() => api.post('/driver/ride/cancel'));
+export const useBoard = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/board`));
+export const useNoShow = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/no-show`));
+export const useStart = () => useDriverAction(() => api.post('/driver/ride/start'));
