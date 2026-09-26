@@ -1551,6 +1551,38 @@
               }
             }
           ]
+        },
+        {
+          "name": "My ride: driver and car (co-riders would be first names only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/requests/{{nusratRequestId}}/ride",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "requests",
+                "{{nusratRequestId}}",
+                "ride"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const ride = pm.response.json().ride;",
+                  "pm.test('driver and car are shown', () => { pm.expect(ride.driverName).to.eql('Jashim'); pm.expect(ride.vehicle.name).to.eql('Bullet'); });",
+                  "pm.test('no fares or contact details leak', () => pm.expect(JSON.stringify(ride)).to.not.match(/fare|poysha|phone|gender/i));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
