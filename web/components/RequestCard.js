@@ -36,7 +36,7 @@ export default function RequestCard({ request }) {
         </div>
 
         <p className="mt-0.5 text-subhead text-label-secondary">
-          {isPrivate ? 'Pickup shown after you accept' : request.pickupStandName}
+          {request.pickupStandName}
         </p>
 
         <div className="mt-2 flex items-center gap-2 text-subhead">

@@ -205,13 +205,13 @@ describe('GET /driver/requests: what a driver is shown before accepting', () => 
     }
   });
 
-  it('a private request hides the stand and the door pin until it is accepted', async () => {
+  it('a private request shows its stand like any other, and never a pin', async () => {
     const jashim = await driverAgent('Jashim', '01700000010', '1000000001');
     const nusrat = await passengerAgent('Nusrat', '01700000030', 'FEMALE', '2000000001');
     await requestRide(nusrat, 'n1', { drop: MOHAKHALI, rideType: 'PRIVATE', pickupLat: 23.794, pickupLng: 90.407 });
 
     const [card] = (await jashim.get('/driver/requests')).body.requests;
-    expect(card).toMatchObject({ rideType: 'PRIVATE', pickupStandId: null, pickupStandName: null, pickupZoneName: 'Banani' });
+    expect(card).toMatchObject({ rideType: 'PRIVATE', pickupStandName: 'Banani Road 11 police box', pickupZoneName: 'Banani' });
     expect(card).not.toHaveProperty('pickupLat');
     expect(card).not.toHaveProperty('pickupLng');
   });

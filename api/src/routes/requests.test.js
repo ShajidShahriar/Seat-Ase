@@ -92,15 +92,16 @@ describe('POST /requests', () => {
     expect(res.body.request.pickupLat).toBeNull();
   });
 
-  it('stores the raw door pin for a private ride, not a stand', async () => {
+  it('picks a private ride up at the nearest stand too, and never stores the pin', async () => {
     const agent = await verifiedAgent(nusrat);
     const res = await agent
       .post('/requests')
       .set('Idempotency-Key', 'k1')
       .send(nusratToMohakhaliBody({ rideType: 'PRIVATE', pickupLat: 23.794, pickupLng: 90.407 }));
     expect(res.status).toBe(201);
-    expect(res.body.request.pickupStandId).toBeNull();
-    expect(res.body.request.pickupLat).toBe(23.794);
+    expect(res.body.request.pickupStandId).toBe(bananiStand.id);
+    expect(res.body.request.pickupLat).toBeNull();
+    expect(res.body.request.pickupLng).toBeNull();
   });
 
   it('replays the same booking for the same key and identical body', async () => {

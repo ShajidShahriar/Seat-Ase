@@ -43,37 +43,30 @@ export async function autoCloseStaleRides() {
   }
 }
 
-async function resolvePickup(rideType, lat, lng) {
-  if (rideType === 'PRIVATE') {
-    const zone = await placesService.assertWithinServiceArea(lat, lng);
-    return { pickupStandId: null, pickupZoneId: zone.id, pickupLat: lat, pickupLng: lng };
-  }
+async function resolvePickup(lat, lng) {
   const nearest = await placesService.nearestStandWithWalk(lat, lng);
   return { pickupStandId: nearest.stand.id, pickupZoneId: nearest.zone.id, pickupLat: null, pickupLng: null };
 }
 
 export async function quoteFare({ pickupLat, pickupLng, dropLat, dropLng, seats }) {
-  const shared = await resolvePickup('SHARED', pickupLat, pickupLng);
-  const door = await resolvePickup('PRIVATE', pickupLat, pickupLng);
+  const pickup = await resolvePickup(pickupLat, pickupLng);
   const dropZone = await placesService.assertWithinServiceArea(dropLat, dropLng);
 
-  const sharedKm = await placesService.getZoneDistanceKm(shared.pickupZoneId, dropZone.id);
-  const privateKm = await placesService.getZoneDistanceKm(door.pickupZoneId, dropZone.id);
-  const sharedFares = estimateFares(sharedKm, { seats });
-  const privateFares = estimateFares(privateKm, { seats });
+  const distanceKm = await placesService.getZoneDistanceKm(pickup.pickupZoneId, dropZone.id);
+  const fares = estimateFares(distanceKm, { seats });
 
   return {
     dropZoneId: dropZone.id,
     shared: {
-      pickupZoneId: shared.pickupZoneId,
-      distanceKm: sharedKm,
-      soloPoysha: sharedFares.soloPoysha,
-      pooledPoysha: sharedFares.pooledPoysha,
+      pickupZoneId: pickup.pickupZoneId,
+      distanceKm,
+      soloPoysha: fares.soloPoysha,
+      pooledPoysha: fares.pooledPoysha,
     },
     private: {
-      pickupZoneId: door.pickupZoneId,
-      distanceKm: privateKm,
-      privatePoysha: privateFares.privatePoysha,
+      pickupZoneId: pickup.pickupZoneId,
+      distanceKm,
+      privatePoysha: fares.privatePoysha,
     },
   };
 }
@@ -108,7 +101,7 @@ export async function createRequest(passenger, body, idempotencyKey) {
     throw new AppError(409, 'ACTIVE_BOOKING_EXISTS', 'You already have an active booking.');
   }
 
-  const pickup = await resolvePickup(body.rideType, body.pickupLat, body.pickupLng);
+  const pickup = await resolvePickup(body.pickupLat, body.pickupLng);
   const dropZone = await placesService.assertWithinServiceArea(body.dropLat, body.dropLng);
 
   const [inserted] = await db
@@ -303,7 +296,7 @@ export async function getOwnRideInfo(id, passengerId) {
     capacity: ride.capacity,
     driverName: ride.driverName,
     vehicle: { name: ride.vehicleName, registrationNo: ride.registrationNo },
-    pickupStandName: ride.isPrivate ? null : ride.pickupStandName,
+    pickupStandName: ride.pickupStandName,
     pickupZoneName: ride.pickupZoneName,
     coRiders,
   };

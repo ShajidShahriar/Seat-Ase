@@ -130,7 +130,7 @@ async function acceptOnce(driverId, requestId, onTransactionStart) {
         .values({
           vehicleId: vehicle.id,
           driverId,
-          pickupStandId: candidateRow.rideType === 'PRIVATE' ? null : candidateRow.pickupStandId,
+          pickupStandId: candidateRow.pickupStandId,
           zoneId: candidateRow.pickupZoneId,
           capacity: vehicle.capacity,
           isPrivate: candidateRow.rideType === 'PRIVATE',
@@ -197,14 +197,13 @@ export async function acceptRequest(driverId, requestId, { onTransactionStart } 
 }
 
 function serializeWaitingRequest(row, fit) {
-  const isPrivate = row.rideType === 'PRIVATE';
   return {
     id: row.id,
     seats: row.seats,
     rideType: row.rideType,
     womenOnly: row.womenOnly,
-    pickupStandId: isPrivate ? null : row.pickupStandId,
-    pickupStandName: isPrivate ? null : row.pickupStandName,
+    pickupStandId: row.pickupStandId,
+    pickupStandName: row.pickupStandName,
     pickupZoneName: row.pickupZoneName,
     dropZoneId: row.dropZoneId,
     queuedAt: row.queuedAt,
