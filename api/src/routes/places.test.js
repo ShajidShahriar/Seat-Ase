@@ -135,6 +135,27 @@ describe('GET /zones/:zoneId/online-count', () => {
     expect(res.body.count).toBe(0);
   });
 
+  it('does not count a driver whose ride has reached the stand or started, but still counts one taking passengers', async () => {
+    const driverAgent = await signedInAgent(jashim);
+    await driverAgent.post('/driver/vehicle').send({ name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 });
+    await driverAgent.post('/driver/online').send({ zoneId: bananiZoneId });
+    const [vehicle] = await db.select().from(vehicles);
+    const [ride] = await db
+      .insert(rides)
+      .values({ vehicleId: vehicle.id, driverId: vehicle.driverId, zoneId: bananiZoneId, capacity: 3, status: 'OPEN' })
+      .returning();
+    const passengerAgent = await signedInAgent(nusrat);
+    const count = async () => (await passengerAgent.get(`/zones/${bananiZoneId}/online-count`)).body.count;
+
+    expect(await count()).toBe(1);
+    await db.update(rides).set({ status: 'ARRIVED' }).where(eq(rides.id, ride.id));
+    expect(await count()).toBe(0);
+    await db.update(rides).set({ status: 'STARTED' }).where(eq(rides.id, ride.id));
+    expect(await count()).toBe(0);
+    await db.update(rides).set({ status: 'COMPLETED' }).where(eq(rides.id, ride.id));
+    expect(await count()).toBe(1);
+  });
+
   it('does not count a driver online in a different zone', async () => {
     const driverAgent = await signedInAgent(jashim);
     await driverAgent.post('/driver/vehicle').send({ name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 });
