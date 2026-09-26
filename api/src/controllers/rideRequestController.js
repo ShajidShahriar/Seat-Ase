@@ -27,3 +27,8 @@ export async function getTimeline(req, res) {
   const timeline = await rideRequestService.getOwnTimeline(req.params.id, req.user.id);
   res.json({ timeline });
 }
+
+export async function getRideInfo(req, res) {
+  const ride = await rideRequestService.getOwnRideInfo(req.params.id, req.user.id);
+  res.json({ ride });
+}

@@ -19,3 +19,4 @@ requestRoutes.get('/requests', requireAuth, requireRole('PASSENGER'), rideReques
 requestRoutes.get('/requests/:id', requireAuth, requireRole('PASSENGER'), rideRequestController.getOne);
 requestRoutes.post('/requests/:id/cancel', requireAuth, requireRole('PASSENGER'), rideRequestController.cancel);
 requestRoutes.get('/requests/:id/timeline', requireAuth, requireRole('PASSENGER'), rideRequestController.getTimeline);
+requestRoutes.get('/requests/:id/ride', requireAuth, requireRole('PASSENGER'), rideRequestController.getRideInfo);

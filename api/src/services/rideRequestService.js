@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { rideRequests, rides, rideEvents } from '../db/schema.js';
+import { rideRequests, rides, rideEvents, vehicles, users, zones, places } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
@@ -252,4 +252,59 @@ export async function getOwnTimeline(id, passengerId) {
     .from(rideEvents)
     .where(rideWideEvent ? or(ownEvent, rideWideEvent) : ownEvent)
     .orderBy(asc(rideEvents.createdAt));
+}
+
+const RIDE_INFO_STATUSES = ['MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED'];
+const CO_RIDER_STATUSES = ['MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
+
+function firstNameOf(fullName) {
+  return fullName.trim().split(/\s+/)[0];
+}
+
+export async function getOwnRideInfo(id, passengerId) {
+  const booking = await getOwnRequest(id, passengerId);
+  if (!booking.rideId || !RIDE_INFO_STATUSES.includes(booking.status)) {
+    return null;
+  }
+
+  const [ride] = await db
+    .select({
+      isPrivate: rides.isPrivate,
+      seatsTaken: rides.seatsTaken,
+      capacity: rides.capacity,
+      driverName: users.name,
+      vehicleName: vehicles.name,
+      registrationNo: vehicles.registrationNo,
+      pickupStandName: places.name,
+      pickupZoneName: zones.name,
+    })
+    .from(rides)
+    .innerJoin(users, eq(users.id, rides.driverId))
+    .innerJoin(vehicles, eq(vehicles.id, rides.vehicleId))
+    .innerJoin(zones, eq(zones.id, rides.zoneId))
+    .leftJoin(places, eq(places.id, rides.pickupStandId))
+    .where(eq(rides.id, booking.rideId));
+
+  let coRiders = [];
+  if (CO_RIDER_STATUSES.includes(booking.status)) {
+    const others = await db
+      .select({ name: users.name, dropZoneName: zones.name, seats: rideRequests.seats })
+      .from(rideRequests)
+      .innerJoin(users, eq(users.id, rideRequests.passengerId))
+      .innerJoin(zones, eq(zones.id, rideRequests.dropZoneId))
+      .where(and(eq(rideRequests.rideId, booking.rideId), inArray(rideRequests.status, CO_RIDER_STATUSES), ne(rideRequests.id, booking.id)))
+      .orderBy(asc(rideRequests.createdAt));
+    coRiders = others.map((other) => ({ firstName: firstNameOf(other.name), dropZoneName: other.dropZoneName, seats: other.seats }));
+  }
+
+  return {
+    isPrivate: ride.isPrivate,
+    seatsTaken: ride.seatsTaken,
+    capacity: ride.capacity,
+    driverName: ride.driverName,
+    vehicle: { name: ride.vehicleName, registrationNo: ride.registrationNo },
+    pickupStandName: ride.isPrivate ? null : ride.pickupStandName,
+    pickupZoneName: ride.pickupZoneName,
+    coRiders,
+  };
 }
