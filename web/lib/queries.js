@@ -217,3 +217,22 @@ export const useCancelRide = () => useDriverAction(() => api.post('/driver/ride/
 export const useBoard = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/board`));
 export const useNoShow = () => useDriverAction((id) => api.post(`/driver/ride/requests/${id}/no-show`));
 export const useStart = () => useDriverAction(() => api.post('/driver/ride/start'));
+
+export function useDrop(onCompleted) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/driver/ride/requests/${id}/drop`),
+    onSuccess: (data) => {
+      if (data.ride.status === 'COMPLETED') onCompleted?.();
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['driver'] }),
+  });
+}
+
+export function useDriverHistory({ enabled }) {
+  return useQuery({
+    queryKey: ['driver', 'history'],
+    queryFn: async () => (await api.get('/driver/history')).rides,
+    enabled,
+  });
+}

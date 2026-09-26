@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Group, Separator, Row, PrimaryButton, SmallButton, ErrorText } from './ui.js';
 import { Seat } from './icons.js';
-import { useArrive, useBoard, useCancelRide, useNoShow, useStart, useZones } from '../lib/queries.js';
+import { useArrive, useBoard, useCancelRide, useDrop, useNoShow, useStart, useZones } from '../lib/queries.js';
 import { useNow } from '../lib/useNow.js';
 import { formatTaka } from '../lib/format.js';
 
@@ -28,7 +28,7 @@ function SeatRow({ taken, capacity }) {
 
 // ---- One passenger: who, where they get off, and what the driver can do about them ----
 
-function PassengerRow({ passenger, index, arrived, waitOver }) {
+function PassengerRow({ passenger, index, arrived, waitOver, started, onDrop, dropError }) {
   const board = useBoard();
   const noShow = useNoShow();
   const boarded = Boolean(passenger.boardedAt);
@@ -43,6 +43,7 @@ function PassengerRow({ passenger, index, arrived, waitOver }) {
             {index + 1}. Drops at {passenger.dropZoneName}, {passenger.seats} {passenger.seats === 1 ? 'seat' : 'seats'}
           </span>
           {arrived ? <span className="block text-footnote text-label-secondary">{fare}</span> : null}
+          {started ? <span className="block text-subhead font-semibold">Collect {formatTaka(passenger.farePoysha)} in cash</span> : null}
           {arrived && !boarded ? (
             <span className="mt-2 flex gap-2">
               <SmallButton loading={board.isPending} onClick={() => board.mutate(passenger.id)}>
@@ -58,9 +59,10 @@ function PassengerRow({ passenger, index, arrived, waitOver }) {
         </span>
 
         {arrived && boarded ? <span className="text-subhead font-semibold text-green">On board</span> : null}
-        {arrived ? null : <span className="text-subhead text-label-secondary">{fare}</span>}
+        {onDrop ? <SmallButton onClick={onDrop}>Drop</SmallButton> : null}
+        {arrived || started ? null : <span className="text-subhead text-label-secondary">{fare}</span>}
       </Row>
-      <ErrorText>{board.error?.message ?? noShow.error?.message}</ErrorText>
+      <ErrorText>{board.error?.message ?? noShow.error?.message ?? dropError}</ErrorText>
     </>
   );
 }
@@ -74,13 +76,15 @@ function clock(ms) {
 
 // ---- The ride the driver has taken on, and what to do next ----
 
-export default function DriverRide({ ride, passengers }) {
+export default function DriverRide({ ride, passengers, onCompleted }) {
   const zones = useZones();
   const arrive = useArrive();
   const start = useStart();
   const cancel = useCancelRide();
+  const drop = useDrop(onCompleted);
   const [confirming, setConfirming] = useState(false);
   const arrived = ride.status === 'ARRIVED';
+  const started = ride.status === 'STARTED';
   const now = useNow(arrived ? 1000 : 60_000);
   const zoneName = zones.data?.find((zone) => zone.id === ride.zoneId)?.name;
 
@@ -116,7 +120,15 @@ export default function DriverRide({ ride, passengers }) {
         {passengers.map((passenger, index) => (
           <div key={passenger.id}>
             {index > 0 ? <Separator /> : null}
-            <PassengerRow passenger={passenger} index={index} arrived={arrived} waitOver={waitOver} />
+            <PassengerRow
+              passenger={passenger}
+              index={index}
+              arrived={arrived}
+              waitOver={waitOver}
+              started={started}
+              onDrop={started && passengers.length > 1 ? () => drop.mutate(passenger.id) : undefined}
+              dropError={drop.variables === passenger.id ? drop.error?.message : undefined}
+            />
           </div>
         ))}
       </Group>
@@ -142,6 +154,15 @@ export default function DriverRide({ ride, passengers }) {
           ) : null}
           {boardedCount === 0 ? <p className="px-4 pt-2 text-footnote text-label-secondary">Board at least one passenger to start.</p> : null}
           <ErrorText>{start.error?.message}</ErrorText>
+        </div>
+      ) : null}
+
+      {started && passengers.length === 1 ? (
+        <div>
+          <PrimaryButton onClick={() => drop.mutate(passengers[0].id)} loading={drop.isPending}>
+            Drop {passengers[0].passengerName} &amp; complete trip
+          </PrimaryButton>
+          <ErrorText>{drop.error?.message}</ErrorText>
         </div>
       ) : null}
 

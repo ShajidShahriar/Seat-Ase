@@ -7,7 +7,8 @@ import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } fro
 import { Checkmark } from '../../components/icons.js';
 import RequestCard from '../../components/RequestCard.js';
 import DriverRide from '../../components/DriverRide.js';
-import { useAddVehicle, useGoOffline, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import { formatDhakaTime } from '../../lib/format.js';
+import { useAddVehicle, useGoOffline, useDriverHistory, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -151,6 +152,32 @@ function OnlinePanel({ vehicle, ride }) {
   );
 }
 
+// ---- Past rides, newest first, in Dhaka time ----
+
+function RideHistory() {
+  const history = useDriverHistory({ enabled: true });
+  const zones = useZones();
+
+  if (!history.data || history.data.length === 0) return null;
+
+  return (
+    <Group className="mt-8" header="Recent rides">
+      {history.data.slice(0, 5).map((ride, index) => (
+        <div key={ride.id}>
+          {index > 0 ? <Separator /> : null}
+          <Row>
+            <span className="min-w-0 flex-1">
+              <span className="block">{zones.data?.find((zone) => zone.id === ride.zoneId)?.name}</span>
+              <span className="block text-footnote text-label-secondary">{formatDhakaTime(ride.createdAt)}</span>
+            </span>
+            <span className={ride.status === 'COMPLETED' ? 'text-green' : 'text-label-secondary'}>{ride.status === 'COMPLETED' ? 'Completed' : 'Cancelled'}</span>
+          </Row>
+        </div>
+      ))}
+    </Group>
+  );
+}
+
 // ---- The driver's home ----
 
 export default function DriverPage() {
@@ -159,12 +186,18 @@ export default function DriverPage() {
   const vehicle = useVehicle();
   const logout = useLogout();
   const driverRide = useDriverRide({ enabled: Boolean(vehicle.data) });
+  const [tripDone, setTripDone] = useState(false);
 
   useEffect(() => {
     if (meLoading) return;
     if (!me) router.replace('/login');
     else if (me.role !== 'DRIVER') router.replace('/');
   }, [meLoading, me, router]);
+
+  const hasRide = Boolean(driverRide.data?.ride);
+  useEffect(() => {
+    if (hasRide) setTripDone(false);
+  }, [hasRide]);
 
   if (!me || me.role !== 'DRIVER') return null;
 
@@ -182,7 +215,14 @@ export default function DriverPage() {
       ) : (
         <>
           <p className={`mt-1 text-subhead ${vehicle.data.isOnline ? 'text-green' : 'text-label-secondary'}`}>{vehicle.data.isOnline ? 'You are online' : 'You are offline'}</p>
-          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} /> : null}
+          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} onCompleted={() => setTripDone(true)} /> : null}
+          {tripDone && !driverRide.data?.ride ? (
+            <Group className="mt-8" footer="You are now in the area where you dropped the last passenger.">
+              <Row>
+                <span className="flex-1 text-green">Trip complete</span>
+              </Row>
+            </Group>
+          ) : null}
           <OnlinePanel vehicle={vehicle.data} ride={driverRide.data?.ride} />
           <Group className="mt-8">
             <Row>
@@ -195,6 +235,7 @@ export default function DriverPage() {
               <span className="text-label-secondary">{vehicle.data.capacity}</span>
             </Row>
           </Group>
+          <RideHistory />
         </>
       )}
 
