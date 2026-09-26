@@ -1,9 +1,10 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, inArray, notExists } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { vehicles, zones } from '../db/schema.js';
+import { rides, vehicles, zones } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 
 const STALE_AFTER_MINUTES = 5;
+const BUSY_RIDE_STATUSES = ['ARRIVED', 'STARTED'];
 
 export async function getVehicleByDriver(driverId) {
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
@@ -55,6 +56,18 @@ export async function onlineCountInZone(zoneId) {
   const rows = await db
     .select({ id: vehicles.id })
     .from(vehicles)
-    .where(and(eq(vehicles.currentZoneId, zoneId), eq(vehicles.isOnline, true), gt(vehicles.lastSeenAt, staleCutoff)));
+    .where(
+      and(
+        eq(vehicles.currentZoneId, zoneId),
+        eq(vehicles.isOnline, true),
+        gt(vehicles.lastSeenAt, staleCutoff),
+        notExists(
+          db
+            .select({ id: rides.id })
+            .from(rides)
+            .where(and(eq(rides.vehicleId, vehicles.id), inArray(rides.status, BUSY_RIDE_STATUSES))),
+        ),
+      ),
+    );
   return rows.length;
 }
