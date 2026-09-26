@@ -15,3 +15,12 @@ export function Checkmark() {
     </svg>
   );
 }
+
+export function Seat({ filled = true }) {
+  return (
+    <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" className="shrink-0">
+      <rect x="3.5" y="1" width="9" height="9" rx="3" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
+      <rect x="1.75" y="11.5" width="12.5" height="5" rx="2.5" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}

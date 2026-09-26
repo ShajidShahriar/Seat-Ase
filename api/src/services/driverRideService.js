@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { rides, rideRequests, vehicles, users, zones } from '../db/schema.js';
+import { rides, rideRequests, vehicles, users, zones, places } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { withDeadlockRetry } from '../lib/dbRetry.js';
 import { checkFit } from './matchService.js';
@@ -203,6 +203,7 @@ function serializeWaitingRequest(row, fit) {
     rideType: row.rideType,
     womenOnly: row.womenOnly,
     pickupStandId: isPrivate ? null : row.pickupStandId,
+    pickupStandName: isPrivate ? null : row.pickupStandName,
     pickupZoneName: row.pickupZoneName,
     dropZoneId: row.dropZoneId,
     queuedAt: row.queuedAt,
@@ -235,6 +236,7 @@ export async function listWaitingRequests(driverId) {
       rideType: rideRequests.rideType,
       womenOnly: rideRequests.womenOnly,
       pickupStandId: rideRequests.pickupStandId,
+      pickupStandName: places.name,
       pickupZoneId: rideRequests.pickupZoneId,
       pickupZoneName: zones.name,
       dropZoneId: rideRequests.dropZoneId,
@@ -244,6 +246,7 @@ export async function listWaitingRequests(driverId) {
     .from(rideRequests)
     .innerJoin(users, eq(users.id, rideRequests.passengerId))
     .innerJoin(zones, eq(zones.id, rideRequests.pickupZoneId))
+    .leftJoin(places, eq(places.id, rideRequests.pickupStandId))
     .where(
       and(
         eq(rideRequests.status, 'REQUESTED'),

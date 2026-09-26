@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { addVehicleSchema } from '@seat-ase/shared';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
+import RequestCard from '../../components/RequestCard.js';
 import { useAddVehicle, useGoOffline, useDriverRequests, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
@@ -53,7 +54,7 @@ function VehicleForm() {
   );
 }
 
-// ---- Waiting passengers: the empty state now, ride cards arrive in a later phase ----
+// ---- Waiting passengers: the empty state, or one card per request ----
 
 function RequestList({ areaName }) {
   const requests = useDriverRequests({ enabled: true });
@@ -72,13 +73,16 @@ function RequestList({ areaName }) {
     );
   }
 
-  const count = requests.data.length;
+  const ordered = [...requests.data].sort((a, b) => Number(b.fits) - Number(a.fits) || new Date(a.queuedAt) - new Date(b.queuedAt));
   return (
-    <Group header="Requests">
-      <Row>
-        <span className="flex-1">{count === 1 ? '1 passenger waiting' : `${count} passengers waiting`}</span>
-      </Row>
-    </Group>
+    <section>
+      <h2 className="px-4 pb-1.5 text-footnote uppercase text-label-secondary">Requests</h2>
+      <div className="flex flex-col gap-3">
+        {ordered.map((request) => (
+          <RequestCard key={request.id} request={request} />
+        ))}
+      </div>
+    </section>
   );
 }
 

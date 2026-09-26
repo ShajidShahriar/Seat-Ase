@@ -185,6 +185,38 @@ describe('Scenario D: private hire', () => {
   });
 });
 
+describe('GET /driver/requests: what a driver is shown before accepting', () => {
+  it('a shared request shows its stand and area but nothing about the passenger', async () => {
+    const jashim = await driverAgent('Jashim', '01700000010', '1000000001');
+    const shirin = await passengerAgent('Shirin', '01700000032', 'FEMALE', '2000000003');
+    await requestRide(shirin, 's1', { drop: MOHAKHALI, womenOnly: true, seats: 2 });
+
+    const [card] = (await jashim.get('/driver/requests')).body.requests;
+    expect(card).toMatchObject({
+      pickupStandName: 'Banani Road 11 police box',
+      pickupZoneName: 'Banani',
+      rideType: 'SHARED',
+      womenOnly: true,
+      seats: 2,
+      fits: true,
+    });
+    for (const secret of ['passengerId', 'name', 'phone', 'gender', 'nid', 'pickupLat', 'pickupLng']) {
+      expect(card).not.toHaveProperty(secret);
+    }
+  });
+
+  it('a private request hides the stand and the door pin until it is accepted', async () => {
+    const jashim = await driverAgent('Jashim', '01700000010', '1000000001');
+    const nusrat = await passengerAgent('Nusrat', '01700000030', 'FEMALE', '2000000001');
+    await requestRide(nusrat, 'n1', { drop: MOHAKHALI, rideType: 'PRIVATE', pickupLat: 23.794, pickupLng: 90.407 });
+
+    const [card] = (await jashim.get('/driver/requests')).body.requests;
+    expect(card).toMatchObject({ rideType: 'PRIVATE', pickupStandId: null, pickupStandName: null, pickupZoneName: 'Banani' });
+    expect(card).not.toHaveProperty('pickupLat');
+    expect(card).not.toHaveProperty('pickupLng');
+  });
+});
+
 describe('Scenario E: three destinations from one stand', () => {
   it('Nusrat, Rafiq and Shirin all fit; fares match the design exactly', async () => {
     const jashim = await driverAgent('Jashim', '01700000010', '1000000001');
