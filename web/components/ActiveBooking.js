@@ -10,7 +10,7 @@ import { formatDhakaTime, formatTaka } from '../lib/format.js';
 // ---- One sentence about the step the passenger is on ----
 
 function stepDetail(booking, ride, zoneName) {
-  const stand = ride?.pickupStandName ?? `your pin in ${ride?.pickupZoneName ?? zoneName(booking.pickupZoneId)}`;
+  const stand = ride?.pickupStandName ?? 'the stand';
   switch (booking.status) {
     case 'REQUESTED':
       return `Waiting for a driver in ${zoneName(booking.pickupZoneId)}.`;
@@ -107,7 +107,7 @@ export default function ActiveBooking({ booking }) {
           <Separator />
           <Row>
             <span className="flex-1">Pickup</span>
-            <span className="text-right text-label-secondary">{ride.pickupStandName ?? `Your pin in ${ride.pickupZoneName}`}</span>
+            <span className="text-right text-label-secondary">{ride.pickupStandName}</span>
           </Row>
           <Separator />
           <Row>

@@ -126,13 +126,13 @@ describe('POST /fares/quote: the quote and the stored booking use the same zones
     expect(stored.dropZoneId).toBe(quote.dropZoneId);
   });
 
-  it('a pin where the stand zone and the nearest zone centre differ: shared uses the stand zone, private the pin zone, the drop the nearest centre', async () => {
+  it('a pin where the stand zone and the nearest zone centre differ: shared and private both use the stand zone, the drop the nearest centre', async () => {
     const pin = { lat: 23.752, lng: 90.404 };
     const agent = await verifiedAgent(nusrat);
     const body = { ...fromBananiStandTo('Mohakhali'), pickupLat: pin.lat, pickupLng: pin.lng, dropLat: pin.lat, dropLng: pin.lng };
     const quote = (await agent.post('/fares/quote').send(body)).body;
     expect(quote.shared.pickupZoneId).toBe(zoneCentre.Tejgaon.id);
-    expect(quote.private.pickupZoneId).toBe(zoneCentre.Farmgate.id);
+    expect(quote.private.pickupZoneId).toBe(zoneCentre.Tejgaon.id);
     expect(quote.dropZoneId).toBe(zoneCentre.Farmgate.id);
 
     const shared = await agent.post('/requests').set('Idempotency-Key', 'quote-pin-shared').send({ ...body, rideType: 'SHARED' });

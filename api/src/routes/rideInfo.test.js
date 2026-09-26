@@ -131,12 +131,12 @@ describe('GET /requests/:id/ride', () => {
     expect((await rafiq.get(`/requests/${rafiqId}/ride`)).body).toEqual({ ride: null });
   });
 
-  it('a private ride shows no stand, and a finished trip keeps the driver and car but no co-riders', async () => {
+  it('a private ride shows its stand, and a finished trip keeps the driver and car but no co-riders', async () => {
     const jashim = await driverAgent();
     const nusrat = await passengerAgent('Nusrat Jahan', '01700000030', 'FEMALE', '2000000001');
     const nusratId = await requestRide(nusrat, 'n1', { drop: MOHAKHALI, rideType: 'PRIVATE', pickup: { lat: 23.794, lng: 90.407 } });
     await jashim.post(`/driver/ride/requests/${nusratId}/accept`);
-    expect((await nusrat.get(`/requests/${nusratId}/ride`)).body.ride).toMatchObject({ isPrivate: true, pickupStandName: null, driverName: 'Jashim Uddin' });
+    expect((await nusrat.get(`/requests/${nusratId}/ride`)).body.ride).toMatchObject({ isPrivate: true, pickupStandName: 'Banani Road 11 police box', driverName: 'Jashim Uddin' });
 
     await jashim.post('/driver/ride/arrived');
     await jashim.post(`/driver/ride/requests/${nusratId}/board`);
