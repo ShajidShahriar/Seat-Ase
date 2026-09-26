@@ -33,6 +33,7 @@ services:
       COOKIE_SECURE: "false"
       SSE_HEARTBEAT_MS: 25000
       DEMO_MODE: "true"
+      DEMO_KEY: ${DEMO_KEY:-local-docker-only-demo-key-never-use-online-0000}
     ports:
       - "4000:4000"
 

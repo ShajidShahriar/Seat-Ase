@@ -60,8 +60,9 @@ async function updateFareCaps(tx, ride) {
   }
 }
 
-async function acceptOnce(driverId, requestId) {
+async function acceptOnce(driverId, requestId, onTransactionStart) {
   return db.transaction(async (tx) => {
+    await onTransactionStart?.(tx);
     const [vehicle] = await tx.select().from(vehicles).where(eq(vehicles.driverId, driverId));
     if (!vehicle) {
       throw new AppError(409, 'NO_VEHICLE', 'Add your vehicle before accepting requests.');
@@ -185,8 +186,8 @@ async function acceptOnce(driverId, requestId) {
   });
 }
 
-export async function acceptRequest(driverId, requestId) {
-  const result = await withDeadlockRetry(() => acceptOnce(driverId, requestId));
+export async function acceptRequest(driverId, requestId, { onTransactionStart } = {}) {
+  const result = await withDeadlockRetry(() => acceptOnce(driverId, requestId, onTransactionStart));
   await nudge('REQUEST_MATCHED', {
     rideId: result.ride.id,
     requestIds: [result.request.id],

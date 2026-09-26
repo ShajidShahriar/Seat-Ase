@@ -6,6 +6,7 @@ import { placesRoutes } from './places.js';
 import { fareRoutes } from './fares.js';
 import { requestRoutes } from './requests.js';
 import { eventRoutes } from './events.js';
+import { devRoutes } from './dev.js';
 
 // Maps URLs to controllers. No logic lives here.
 export const routes = Router();
@@ -17,3 +18,4 @@ routes.use(placesRoutes);
 routes.use(fareRoutes);
 routes.use(requestRoutes);
 routes.use(eventRoutes);
+routes.use('/dev', devRoutes);

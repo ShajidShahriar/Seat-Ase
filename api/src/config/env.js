@@ -3,6 +3,7 @@ import { z } from 'zod';
 // The placeholder shipped in .env.example. Fine on a laptop, never in production.
 export const EXAMPLE_JWT_SECRET = 'dev-only-secret-change-me-at-least-32-chars';
 export const EXAMPLE_NID_PEPPER = 'dev-only-nid-pepper-never-rotate-at-least-32';
+export const EXAMPLE_DEMO_KEY = 'dev-only-demo-key-change-me-at-least-32-chars';
 
 const envSchema = z
   .object({
@@ -21,6 +22,7 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    DEMO_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     // Red-team #38: a missing or guessable secret lets anyone forge a login as Jashim.
@@ -32,6 +34,16 @@ const envSchema = z
         path: ['JWT_SECRET'],
         message: 'must be set to a real secret of at least 32 characters in production',
       });
+    }
+    if (env.DEMO_MODE) {
+      const key = env.DEMO_KEY ?? '';
+      if (key.length < 32 || key === EXAMPLE_DEMO_KEY) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['DEMO_KEY'],
+          message: 'must be set to a real key of at least 32 characters when DEMO_MODE is on in production',
+        });
+      }
     }
     const pepper = env.NID_PEPPER ?? '';
     if (pepper.length < 32 || pepper === EXAMPLE_NID_PEPPER) {
