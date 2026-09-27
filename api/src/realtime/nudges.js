@@ -12,6 +12,7 @@ export const WHO_GETS_NUDGED = {
   REQUEST_EXPIRED: ['bookingOwners', 'zoneDrivers'],
   REQUEST_MATCHED: ['bookingOwners', 'rideDriver', 'ridePassengers', 'zoneDrivers'],
   RIDE_CANCELLED: ['bookingOwners', 'rideDriver', 'zoneDrivers'],
+  RIDE_ABANDONED: ['bookingOwners', 'rideDriver', 'zoneDrivers'],
   ARRIVED: ['rideDriver', 'ridePassengers'],
   BOARDED: ['bookingOwners', 'rideDriver'],
   NO_SHOW: ['bookingOwners', 'rideDriver', 'ridePassengers'],

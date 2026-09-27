@@ -7,7 +7,7 @@ import { checkFit } from './matchService.js';
 import { getZoneDistanceKm } from './placesService.js';
 import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha } from './fareService.js';
 import { recordEvent } from './rideEventService.js';
-import { ACTIVE_BOOKING_STATUSES, expireStaleRequests, autoCloseStaleRides } from './rideRequestService.js';
+import { ACTIVE_BOOKING_STATUSES, expireStaleRequests, autoCloseStaleRides, cancelAbandonedRides } from './rideRequestService.js';
 import { nudge } from '../realtime/nudges.js';
 
 const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
@@ -187,6 +187,7 @@ async function acceptOnce(driverId, requestId, onTransactionStart) {
 }
 
 export async function acceptRequest(driverId, requestId, { onTransactionStart } = {}) {
+  await cancelAbandonedRides();
   const result = await withDeadlockRetry(() => acceptOnce(driverId, requestId, onTransactionStart));
   await nudge('REQUEST_MATCHED', {
     rideId: result.ride.id,
@@ -214,6 +215,7 @@ function serializeWaitingRequest(row, fit) {
 
 export async function listWaitingRequests(driverId) {
   await expireStaleRequests();
+  await cancelAbandonedRides();
 
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
   if (!vehicle) {
@@ -554,6 +556,7 @@ export async function dropPassenger(driverId, requestId) {
 
 export async function getDriverRide(driverId) {
   await expireStaleRequests();
+  await cancelAbandonedRides();
   await autoCloseStaleRides();
 
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));

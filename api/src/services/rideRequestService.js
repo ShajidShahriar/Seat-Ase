@@ -12,6 +12,7 @@ export const ACTIVE_BOOKING_STATUSES = ['REQUESTED', 'MATCHED', 'DRIVER_ARRIVED'
 const EXPIRY_MINUTES = 15;
 const ARRIVAL_CANCEL_MINUTES = 15;
 const AUTO_CLOSE_HOURS = 3;
+export const ARRIVE_WITHIN_MINUTES = 15;
 
 export async function expireStaleRequests() {
   const cutoff = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
@@ -24,6 +25,33 @@ export async function expireStaleRequests() {
   const byZone = Map.groupBy(expired, (r) => r.pickupZoneId);
   for (const [zoneId, rows] of byZone) {
     await nudge('REQUEST_EXPIRED', { zoneId, requestIds: rows.map((r) => r.id) });
+  }
+}
+
+// ---- A driver who accepts but never reaches the stand: after 15 minutes the ride is cancelled and everyone goes back to waiting ----
+
+export async function cancelAbandonedRides() {
+  const cutoff = new Date(Date.now() - ARRIVE_WITHIN_MINUTES * 60 * 1000);
+  const stale = await db.select({ id: rides.id }).from(rides).where(and(eq(rides.status, 'OPEN'), lt(rides.createdAt, cutoff)));
+
+  for (const { id } of stale) {
+    const result = await db.transaction(async (tx) => {
+      const [ride] = await tx.select().from(rides).where(and(eq(rides.id, id), eq(rides.status, 'OPEN'), lt(rides.createdAt, cutoff))).for('update');
+      if (!ride) return null;
+
+      const returned = await tx
+        .update(rideRequests)
+        .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null })
+        .where(and(eq(rideRequests.rideId, ride.id), eq(rideRequests.status, 'MATCHED')))
+        .returning({ id: rideRequests.id });
+      for (const booking of returned) {
+        await recordEvent({ rideId: ride.id, requestId: booking.id, type: 'RIDE_ABANDONED', fromStatus: 'MATCHED', toStatus: 'REQUESTED' }, tx);
+      }
+      await tx.update(rides).set({ status: 'CANCELLED', seatsTaken: 0 }).where(eq(rides.id, ride.id));
+      await recordEvent({ rideId: ride.id, type: 'RIDE_ABANDONED', fromStatus: 'OPEN', toStatus: 'CANCELLED' }, tx);
+      return { ride, requestIds: returned.map((b) => b.id) };
+    });
+    if (result) await nudge('RIDE_ABANDONED', { rideId: result.ride.id, requestIds: result.requestIds, zoneId: result.ride.zoneId });
   }
 }
 
@@ -129,12 +157,14 @@ export async function createRequest(passenger, body, idempotencyKey) {
 
 export async function listForPassenger(passengerId) {
   await expireStaleRequests();
+  await cancelAbandonedRides();
   await autoCloseStaleRides();
   return db.select().from(rideRequests).where(eq(rideRequests.passengerId, passengerId)).orderBy(desc(rideRequests.createdAt));
 }
 
 export async function getOwnRequest(id, passengerId) {
   await expireStaleRequests();
+  await cancelAbandonedRides();
   await autoCloseStaleRides();
   const [request] = await db
     .select()
