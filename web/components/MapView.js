@@ -30,7 +30,7 @@ function markerElement(kind, spec) {
 }
 
 // ---- The map. `scene` says what to show; the component works out what changed ----
-// scene: { pin, stand: { lat, lng, mode, badge }, drops: [{ lat, lng, label, done }], walk, route: [from, to] or [[from, to], ...], approach, tesla: { lat, lng, heading }, focus: 'home' | points }
+// scene: { pin, stand: { lat, lng, mode, badge }, stands: [ ...more stands ], drops: [{ lat, lng, label, done }], walk, route: [from, to] or [[from, to], ...], approach, tesla: { lat, lng, heading }, focus: 'home' | points }
 
 export default function MapView({ scene = {}, padding, onTap, className = '' }) {
   const container = useRef(null);
@@ -85,6 +85,7 @@ export default function MapView({ scene = {}, padding, onTap, className = '' }) 
     const wanted = new Map();
     if (scene.pin) wanted.set('pin', ['pin', scene.pin]);
     if (scene.stand) wanted.set('stand', ['stand', scene.stand]);
+    (scene.stands ?? []).forEach((stand, i) => wanted.set(`stand${i}`, ['stand', stand]));
     (scene.drops ?? []).forEach((drop, i) => wanted.set(`drop${i}`, ['drop', drop]));
     if (scene.tesla) wanted.set('tesla', ['tesla', scene.tesla]);
     for (const [key, entry] of markers.current) {
