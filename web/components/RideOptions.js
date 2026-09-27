@@ -1,7 +1,6 @@
 'use client';
 
 import { Group, Separator, Row, ErrorText, Segmented, Toggle } from './ui.js';
-import { useOnlineCount, useZones } from '../lib/queries.js';
 import { formatTaka } from '../lib/format.js';
 
 const RIDE_TYPES = [
@@ -10,23 +9,6 @@ const RIDE_TYPES = [
 ];
 
 const SEAT_OPTIONS = [1, 2, 3, 4].map((n) => ({ value: n, label: String(n) }));
-
-// ---- How many Teslas are waiting where the passenger will be picked up ----
-
-function OnlineCount({ zoneId }) {
-  const count = useOnlineCount(zoneId);
-  const zones = useZones();
-  const zoneName = zones.data?.find((zone) => zone.id === zoneId)?.name;
-
-  if (count.isPending || !zoneName) return null;
-  if (count.isError) return null;
-  if (count.data === 0) return <p className="px-4 pt-2 text-footnote text-label-secondary">No Teslas online in {zoneName} right now. You can still request and wait.</p>;
-  return (
-    <p className="px-4 pt-2 text-footnote text-label-secondary">
-      {count.data} {count.data === 1 ? 'Tesla is' : 'Teslas are'} online in {zoneName}.
-    </p>
-  );
-}
 
 // ---- Shared or private, seats, women-only, and what it will cost ----
 
@@ -77,7 +59,6 @@ export default function RideOptions({ isFemale, options, onChange, quote }) {
               <span className="text-headline">{formatTaka(isPrivate ? quote.data.private.privatePoysha : quote.data.shared.pooledPoysha)}</span>
             </Row>
           </Group>
-          <OnlineCount zoneId={isPrivate ? quote.data.private.pickupZoneId : quote.data.shared.pickupZoneId} />
         </div>
       ) : null}
     </div>

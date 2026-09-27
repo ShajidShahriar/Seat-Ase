@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Loading, QueryError } from '../../components/ui.js';
-import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
+import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, useOnlineCount, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
 import { useStage } from '../../components/MapStage.js';
 import RideOptions from '../../components/RideOptions.js';
@@ -69,8 +69,14 @@ function PlaceResults({ text, onPick }) {
 
 // ---- The stand the passenger will board at, and the walk to it ----
 
+function onlineText(count, zoneName) {
+  if (count === 0) return `No Teslas online in ${zoneName} right now`;
+  return `${count} ${count === 1 ? 'Tesla' : 'Teslas'} online in ${zoneName}`;
+}
+
 function PickupPoint({ place }) {
   const nearest = useNearestStand(place);
+  const online = useOnlineCount(nearest.data?.zone.id);
 
   if (nearest.isPending) return <p className="px-4 text-subhead text-label-secondary">Finding the nearest stand</p>;
   if (nearest.isError) return <ErrorText>{nearest.error.message}</ErrorText>;
@@ -79,13 +85,24 @@ function PickupPoint({ place }) {
   const boardsHere = place.kind === 'STAND' && place.id === stand.id;
 
   return (
-    <Group header="Pickup point" footer={`${zone.name}. Your driver stops at the stand, not at your door.`}>
+    <Group
+      header="Pickup point"
+      footer={online.data === 0 ? 'You can still request, and wait for one to come online.' : `${zone.name}. Your driver stops at the stand, not at your door.`}
+    >
       <Row>
         <span className="min-w-0 flex-1">
           <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
           <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.kind === 'PIN' ? 'your pin' : place.name}`}</span>
         </span>
       </Row>
+      {online.data === undefined ? null : (
+        <>
+          <Separator />
+          <Row>
+            <span className={`flex-1 ${online.data > 0 ? 'text-green' : 'text-label-secondary'}`}>{onlineText(online.data, zone.name)}</span>
+          </Row>
+        </>
+      )}
     </Group>
   );
 }

@@ -36,6 +36,7 @@ export const EVENT_LABELS = {
   NO_SHOW: 'You were marked as a no-show',
   LEFT_BEHIND: 'The trip left without you, back to waiting',
   RIDE_CANCELLED: 'The driver cancelled the ride, back to waiting',
+  RIDE_ABANDONED: 'Your driver did not reach the stand in time, back to waiting',
   RIDE_AUTO_CANCELLED: 'The ride was cancelled',
   RIDE_AUTO_CLOSED: 'The trip was closed automatically',
 };
