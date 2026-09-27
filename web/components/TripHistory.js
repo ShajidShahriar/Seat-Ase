@@ -56,7 +56,8 @@ export function Receipt({ booking, onDone }) {
             <Row>
               <span className="flex-1">Car</span>
               <span className="text-right text-label-secondary">
-                {ride.vehicle.name}, {ride.vehicle.registrationNo}
+                <span className="block">{ride.vehicle.name}</span>
+                <span className="block whitespace-nowrap text-footnote">{ride.vehicle.registrationNo}</span>
               </span>
             </Row>
           </>
