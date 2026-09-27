@@ -9,12 +9,12 @@ export async function create(req, res) {
 }
 
 export async function list(req, res) {
-  const requests = await rideRequestService.listForPassenger(req.user.id);
+  const requests = await rideRequestService.describeBookings(await rideRequestService.listForPassenger(req.user.id));
   res.json({ requests });
 }
 
 export async function getOne(req, res) {
-  const request = await rideRequestService.getOwnRequest(req.params.id, req.user.id);
+  const [request] = await rideRequestService.describeBookings([await rideRequestService.getOwnRequest(req.params.id, req.user.id)]);
   res.json({ request });
 }
 
