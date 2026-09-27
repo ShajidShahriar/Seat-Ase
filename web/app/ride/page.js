@@ -14,11 +14,11 @@ import { ACTIVE_STATUSES, newIdempotencyKey, readDismissedReceipt, writeDismisse
 
 // ---- What the map shows while planning: the pickup, its stand, the walk, the trip ----
 
-function planScene(pickup, stand, drop) {
+function planScene(pickup, stand, drop, online) {
   const onStand = pickup && stand && Math.abs(pickup.lat - stand.lat) < 1e-6 && Math.abs(pickup.lng - stand.lng) < 1e-6;
   const scene = { focus: 'home' };
   if (pickup && !onStand) scene.pin = { lat: pickup.lat, lng: pickup.lng };
-  if (stand) scene.stand = { lat: stand.lat, lng: stand.lng };
+  if (stand) scene.stand = { lat: stand.lat, lng: stand.lng, ...(online > 0 ? { badge: `${online} ${online === 1 ? 'Tesla' : 'Teslas'} nearby` } : {}) };
   if (scene.pin && scene.stand) scene.walk = true;
   if (drop) scene.drops = [{ lat: drop.lat, lng: drop.lng }];
   if (stand && drop) scene.route = [{ lat: stand.lat, lng: stand.lng }, { lat: drop.lat, lng: drop.lng }];
@@ -125,7 +125,8 @@ function PlanRide({ me }) {
   };
   const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
-  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place), snap: 'half', onTap: dropPin });
+  const online = useOnlineCount(nearest.data?.zone.id);
+  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place, online.data), snap: 'half', onTap: dropPin });
   const isPrivate = options.rideType === 'PRIVATE';
 
   function requestRide() {
