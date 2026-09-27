@@ -6,6 +6,8 @@ import Stepper from './Stepper.js';
 import { useCancelBooking, useRideInfo, useTimeline, useZones } from '../lib/queries.js';
 import { EVENT_LABELS, STATUS_TITLES, STEPS, STEP_OF_STATUS } from '../lib/bookings.js';
 import { formatDhakaTime, formatTaka } from '../lib/format.js';
+import { useStage } from './MapStage.js';
+import { bearing } from '../lib/mapStyle.js';
 
 // ---- One sentence about the step the passenger is on ----
 
@@ -33,6 +35,30 @@ function fareText(booking) {
   return null;
 }
 
+// ---- What the map shows for each step. There is no GPS, so the car only appears where we know it is: at the stand once it has arrived ----
+
+function bookingScene(booking) {
+  const stand = booking.pickupStand;
+  const drop = booking.dropPoint;
+  if (!stand || !drop) return { scene: { focus: 'home' }, snap: 'half' };
+  const base = { drops: [drop], route: [stand, drop] };
+  switch (booking.status) {
+    case 'REQUESTED':
+      return { scene: { ...base, stand: { lat: stand.lat, lng: stand.lng, mode: 'search' }, focus: [stand], zoom: 15 }, snap: 'half' };
+    case 'MATCHED':
+      return { scene: { ...base, stand: { lat: stand.lat, lng: stand.lng, badge: 'Your Tesla comes here' }, focus: [stand, drop] }, snap: 'half' };
+    case 'DRIVER_ARRIVED':
+      return {
+        scene: { ...base, stand: { lat: stand.lat, lng: stand.lng, mode: 'quiet' }, tesla: { lat: stand.lat, lng: stand.lng, heading: Math.round(bearing(stand, drop)) }, focus: booking.boardedAt ? [stand, drop] : [stand], zoom: 16 },
+        snap: 'half',
+      };
+    case 'IN_PROGRESS':
+      return { scene: { ...base, stand: { lat: stand.lat, lng: stand.lng, mode: 'quiet' }, focus: [stand, drop] }, snap: 'peek' };
+    default:
+      return { scene: { focus: 'home' }, snap: 'half' };
+  }
+}
+
 // ---- A booking in progress: where it is, who is coming, what it costs, what has happened ----
 
 export default function ActiveBooking({ booking }) {
@@ -46,6 +72,7 @@ export default function ActiveBooking({ booking }) {
   const ride = rideInfo.data;
   const fare = fareText(booking);
   const canCancel = booking.status !== 'IN_PROGRESS';
+  useStage(bookingScene(booking));
 
   useEffect(() => {
     if (!confirming) return;

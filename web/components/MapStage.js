@@ -103,14 +103,14 @@ export function MapStage({ children }) {
 
 // ---- A page says what the map should show, how high the sheet sits, and what a tap on the map means ----
 
-export function useStage({ scene = { focus: 'home' }, snap = 'half', onTap = null } = {}) {
+export function useStage({ scene = { focus: 'home' }, snap = 'half', onTap = null, enabled = true } = {}) {
   const stage = useContext(StageContext);
-  stage.tap.current = onTap;
+  if (enabled) stage.tap.current = onTap;
   const signature = JSON.stringify(scene);
   useEffect(() => {
-    stage.setScene(JSON.parse(signature));
-  }, [signature]);
+    if (enabled) stage.setScene(JSON.parse(signature));
+  }, [signature, enabled]);
   useEffect(() => {
-    stage.setSnap(snap);
-  }, [snap]);
+    if (enabled) stage.setSnap(snap);
+  }, [snap, enabled]);
 }

@@ -53,3 +53,9 @@ export function arc(from, to, bend = 0.22, steps = 64) {
   }
   return points;
 }
+
+// ---- Which way a car at `from` would face to drive to `to`, in degrees clockwise from north ----
+
+export function bearing(from, to) {
+  return (Math.atan2(to.lng - from.lng, to.lat - from.lat) * 180) / Math.PI;
+}

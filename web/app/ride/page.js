@@ -181,6 +181,8 @@ export default function RidePage() {
     else if (!me.phoneVerified) router.replace('/verify');
   }, [isPending, me, router]);
 
+  useStage({ enabled: bookings.isPending || bookings.isError });
+
   if (!me || me.role === 'DRIVER' || !me.phoneVerified) return null;
 
   const activeBooking = bookings.data?.find((booking) => ACTIVE_STATUSES.includes(booking.status));
@@ -198,11 +200,17 @@ export default function RidePage() {
         <ActiveBooking booking={activeBooking} />
       ) : (
         <>
-          {showReceipt ? <Receipt booking={lastTrip} onDone={() => {
+          {showReceipt ? (
+            <Receipt
+              booking={lastTrip}
+              onDone={() => {
                 writeDismissedReceipt(lastTrip.id);
                 setDismissedReceipt(lastTrip.id);
-              }} /> : null}
-          <PlanRide me={me} />
+              }}
+            />
+          ) : (
+            <PlanRide me={me} />
+          )}
           <PastBookings bookings={finished} />
         </>
       )}
