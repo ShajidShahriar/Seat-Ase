@@ -9,6 +9,7 @@ import RequestCard from '../../components/RequestCard.js';
 import DriverRide from '../../components/DriverRide.js';
 import { formatDhakaTime } from '../../lib/format.js';
 import { useAddVehicle, useGoOffline, useDriverHistory, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import { useStage } from '../../components/MapStage.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -181,6 +182,7 @@ function RideHistory() {
 // ---- The driver's home ----
 
 export default function DriverPage() {
+  useStage({ snap: 'half' });
   const router = useRouter();
   const { data: me, isPending: meLoading } = useMe();
   const vehicle = useVehicle();
@@ -202,7 +204,7 @@ export default function DriverPage() {
   if (!me || me.role !== 'DRIVER') return null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">{vehicle.data ? vehicle.data.name : 'Add your Tesla'}</h1>
       {vehicle.data === null ? (
         <p className="mt-1 text-subhead text-label-secondary">Passengers can only be matched with a registered car.</p>

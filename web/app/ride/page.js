@@ -1,20 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Loading, QueryError } from '../../components/ui.js';
 import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
+import { useStage } from '../../components/MapStage.js';
 import RideOptions from '../../components/RideOptions.js';
 import ActiveBooking from '../../components/ActiveBooking.js';
 import { PastBookings, Receipt } from '../../components/TripHistory.js';
 import { ACTIVE_STATUSES, newIdempotencyKey, readDismissedReceipt, writeDismissedReceipt } from '../../lib/bookings.js';
 
-const MapView = dynamic(() => import('../../components/MapView.js'), {
-  ssr: false,
-  loading: () => <div className="h-56 rounded-cell bg-fill" />,
-});
 
 // ---- What the map shows while planning: the pickup, its stand, the walk, the trip ----
 
@@ -112,6 +108,7 @@ function PlanRide({ me }) {
   };
   const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
+  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place), snap: 'half', onTap: dropPin });
   const isPrivate = options.rideType === 'PRIVATE';
 
   function requestRide() {
@@ -133,12 +130,7 @@ function PlanRide({ me }) {
     <>
       <h1 className="text-large-title">Where to?</h1>
 
-      <div className="mt-6">
-        <MapView className="h-56 overflow-hidden rounded-cell" scene={planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place)} onTap={dropPin} />
-      </div>
-      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place, or tap the map to drop a pin.</p>
-
-      <Group className="mt-6">
+      <Group className="mt-4" footer={fields.pickup.place && fields.drop.place ? undefined : 'Search for a place, or tap the map to drop a pin.'}>
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />
@@ -197,7 +189,7 @@ export default function RidePage() {
   const showReceipt = lastTrip && lastTrip.id !== dismissedReceipt && Date.now() - new Date(lastTrip.droppedAt).getTime() < RECEIPT_WINDOW_MS;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       {bookings.isPending ? (
         <Loading>Loading your rides</Loading>
       ) : bookings.isError ? (

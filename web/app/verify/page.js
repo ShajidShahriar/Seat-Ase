@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Group, Row, Field, PrimaryButton, ErrorText } from '../../components/ui.js';
 import { useMe, useSendOtp, useVerifyOtp } from '../../lib/queries.js';
+import { useStage } from '../../components/MapStage.js';
 
 export default function VerifyPage() {
+  useStage({ snap: 'full' });
   const router = useRouter();
   const { data: me, isPending } = useMe();
   const sendOtp = useSendOtp();
@@ -35,7 +37,7 @@ export default function VerifyPage() {
   const demoCode = sendOtp.data?.demoCode;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">Verify your phone</h1>
       <p className="mt-1 text-subhead text-label-secondary">Enter the 6-digit code sent to {me.phone}.</p>
 
