@@ -11,10 +11,25 @@ import ActiveBooking from '../../components/ActiveBooking.js';
 import { PastBookings, Receipt } from '../../components/TripHistory.js';
 import { ACTIVE_STATUSES, newIdempotencyKey, readDismissedReceipt, writeDismissedReceipt } from '../../lib/bookings.js';
 
-const RideMap = dynamic(() => import('../../components/RideMap.js'), {
+const MapView = dynamic(() => import('../../components/MapView.js'), {
   ssr: false,
   loading: () => <div className="h-56 rounded-cell bg-fill" />,
 });
+
+// ---- What the map shows while planning: the pickup, its stand, the walk, the trip ----
+
+function planScene(pickup, stand, drop) {
+  const onStand = pickup && stand && Math.abs(pickup.lat - stand.lat) < 1e-6 && Math.abs(pickup.lng - stand.lng) < 1e-6;
+  const scene = { focus: 'home' };
+  if (pickup && !onStand) scene.pin = { lat: pickup.lat, lng: pickup.lng };
+  if (stand) scene.stand = { lat: stand.lat, lng: stand.lng };
+  if (scene.pin && scene.stand) scene.walk = true;
+  if (drop) scene.drops = [{ lat: drop.lat, lng: drop.lng }];
+  if (stand && drop) scene.route = [{ lat: stand.lat, lng: stand.lng }, { lat: drop.lat, lng: drop.lng }];
+  const points = [scene.pin, scene.stand, ...(scene.drops ?? [])].filter(Boolean);
+  if (points.length) scene.focus = points;
+  return scene;
+}
 
 const RECEIPT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -119,7 +134,7 @@ function PlanRide({ me }) {
       <h1 className="text-large-title">Where to?</h1>
 
       <div className="mt-6">
-        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} onTap={dropPin} />
+        <MapView className="h-56 overflow-hidden rounded-cell" scene={planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place)} onTap={dropPin} />
       </div>
       <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place, or tap the map to drop a pin.</p>
 
