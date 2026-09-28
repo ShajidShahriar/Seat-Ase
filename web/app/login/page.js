@@ -8,8 +8,10 @@ import { Group, Separator, Row, Field, PrimaryButton, ErrorText } from '../../co
 import { Chevron } from '../../components/icons.js';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../lib/demoAccounts.js';
 import { useLogin, useMe } from '../../lib/queries.js';
+import { useStage } from '../../components/MapStage.js';
 
 export default function LoginPage() {
+  useStage({ snap: 'full' });
   const router = useRouter();
   const { data: me } = useMe();
   const login = useLogin();
@@ -40,7 +42,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">Seat Ase?</h1>
       <p className="mt-1 text-subhead text-label-secondary">Log in to find a seat, or to drive.</p>
 

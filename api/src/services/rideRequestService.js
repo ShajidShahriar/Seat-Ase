@@ -143,6 +143,8 @@ export async function createRequest(passenger, body, idempotencyKey) {
       pickupLat: pickup.pickupLat,
       pickupLng: pickup.pickupLng,
       pickupZoneId: pickup.pickupZoneId,
+      dropLat: body.dropLat,
+      dropLng: body.dropLng,
       dropZoneId: dropZone.id,
       idempotencyKey,
       bodyHash,
@@ -153,6 +155,23 @@ export async function createRequest(passenger, body, idempotencyKey) {
   await nudge('REQUEST_CREATED', { requestIds: [inserted.id], zoneId: inserted.pickupZoneId });
 
   return { request: inserted, replay: false };
+}
+
+// ---- Where a booking starts and ends, for the passenger's own map: the stand, and her drop point (the zone centre for bookings made before drop points were stored) ----
+
+export async function describeBookings(rows) {
+  if (rows.length === 0) return rows;
+  const standIds = [...new Set(rows.map((r) => r.pickupStandId).filter(Boolean))];
+  const zoneIds = [...new Set(rows.map((r) => r.dropZoneId))];
+  const stands = standIds.length ? await db.select({ id: places.id, name: places.name, lat: places.lat, lng: places.lng }).from(places).where(inArray(places.id, standIds)) : [];
+  const dropZones = await db.select({ id: zones.id, lat: zones.centerLat, lng: zones.centerLng }).from(zones).where(inArray(zones.id, zoneIds));
+  const standById = new Map(stands.map((s) => [s.id, { name: s.name, lat: s.lat, lng: s.lng }]));
+  const zoneById = new Map(dropZones.map((z) => [z.id, { lat: z.lat, lng: z.lng }]));
+  return rows.map((row) => ({
+    ...row,
+    pickupStand: standById.get(row.pickupStandId) ?? null,
+    dropPoint: row.dropLat != null ? { lat: row.dropLat, lng: row.dropLng } : zoneById.get(row.dropZoneId),
+  }));
 }
 
 export async function listForPassenger(passengerId) {
@@ -299,6 +318,8 @@ export async function getOwnRideInfo(id, passengerId) {
       vehicleName: vehicles.name,
       registrationNo: vehicles.registrationNo,
       pickupStandName: places.name,
+      pickupStandLat: places.lat,
+      pickupStandLng: places.lng,
       pickupZoneName: zones.name,
     })
     .from(rides)
@@ -327,6 +348,7 @@ export async function getOwnRideInfo(id, passengerId) {
     driverName: ride.driverName,
     vehicle: { name: ride.vehicleName, registrationNo: ride.registrationNo },
     pickupStandName: ride.pickupStandName,
+    pickupStand: ride.pickupStandName ? { name: ride.pickupStandName, lat: ride.pickupStandLat, lng: ride.pickupStandLng } : null,
     pickupZoneName: ride.pickupZoneName,
     coRiders,
   };

@@ -7,6 +7,7 @@ import { signupSchema } from '@seat-ase/shared';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } from '../../components/ui.js';
 import { Checkmark } from '../../components/icons.js';
 import { useMe, useSignup } from '../../lib/queries.js';
+import { useStage } from '../../components/MapStage.js';
 
 const ROLES = [
   { value: 'PASSENGER', label: 'I need a ride' },
@@ -20,6 +21,7 @@ const GENDERS = [
 ];
 
 export default function SignupPage() {
+  useStage({ snap: 'full' });
   const router = useRouter();
   const { data: me } = useMe();
   const signup = useSignup();
@@ -52,7 +54,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">Create account</h1>
       <p className="mt-1 text-subhead text-label-secondary">It takes a minute. Your phone and NID keep Seat Ase? safe.</p>
 

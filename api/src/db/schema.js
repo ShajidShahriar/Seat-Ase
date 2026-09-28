@@ -161,6 +161,8 @@ export const rideRequests = pgTable(
     pickupZoneId: uuid('pickup_zone_id')
       .notNull()
       .references(() => zones.id),
+    dropLat: doublePrecision('drop_lat'),
+    dropLng: doublePrecision('drop_lng'),
     dropZoneId: uuid('drop_zone_id')
       .notNull()
       .references(() => zones.id),

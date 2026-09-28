@@ -205,6 +205,7 @@ function serializeWaitingRequest(row, fit) {
     womenOnly: row.womenOnly,
     pickupStandId: row.pickupStandId,
     pickupStandName: row.pickupStandName,
+    pickupStand: row.pickupStandName ? { name: row.pickupStandName, lat: row.pickupStandLat, lng: row.pickupStandLng } : null,
     pickupZoneName: row.pickupZoneName,
     dropZoneId: row.dropZoneId,
     queuedAt: row.queuedAt,
@@ -239,6 +240,8 @@ export async function listWaitingRequests(driverId) {
       womenOnly: rideRequests.womenOnly,
       pickupStandId: rideRequests.pickupStandId,
       pickupStandName: places.name,
+      pickupStandLat: places.lat,
+      pickupStandLng: places.lng,
       pickupZoneId: rideRequests.pickupZoneId,
       pickupZoneName: zones.name,
       dropZoneId: rideRequests.dropZoneId,
@@ -581,6 +584,10 @@ export async function getDriverRide(driverId) {
       womenOnly: rideRequests.womenOnly,
       dropZoneId: rideRequests.dropZoneId,
       dropZoneName: zones.name,
+      dropLat: rideRequests.dropLat,
+      dropLng: rideRequests.dropLng,
+      dropZoneLat: zones.centerLat,
+      dropZoneLng: zones.centerLng,
       boardedAt: rideRequests.boardedAt,
       fareCapPoysha: rideRequests.fareCapPoysha,
       farePoysha: rideRequests.farePoysha,
@@ -592,11 +599,16 @@ export async function getDriverRide(driverId) {
     .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
 
   const withDistance = await Promise.all(
-    bookings.map(async (b) => ({ ...b, distanceFromPickupKm: await getZoneDistanceKm(ride.zoneId, b.dropZoneId) })),
+    bookings.map(async ({ dropLat, dropLng, dropZoneLat, dropZoneLng, ...b }) => ({
+      ...b,
+      dropPoint: dropLat != null ? { lat: dropLat, lng: dropLng } : { lat: dropZoneLat, lng: dropZoneLng },
+      distanceFromPickupKm: await getZoneDistanceKm(ride.zoneId, b.dropZoneId),
+    })),
   );
   withDistance.sort((a, b) => a.distanceFromPickupKm - b.distanceFromPickupKm);
 
-  return { ride, passengers: withDistance };
+  const [stand] = ride.pickupStandId ? await db.select({ name: places.name, lat: places.lat, lng: places.lng }).from(places).where(eq(places.id, ride.pickupStandId)) : [];
+  return { ride: { ...ride, pickupStand: stand ?? null }, passengers: withDistance };
 }
 
 export async function getDriverHistory(driverId) {

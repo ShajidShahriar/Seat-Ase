@@ -9,6 +9,8 @@ import RequestCard from '../../components/RequestCard.js';
 import DriverRide from '../../components/DriverRide.js';
 import { formatDhakaTime } from '../../lib/format.js';
 import { useAddVehicle, useGoOffline, useDriverHistory, useDriverRequests, useDriverRide, useGoOnline, useLogout, useMe, useVehicle, useZones } from '../../lib/queries.js';
+import { useStage } from '../../components/MapStage.js';
+import { bearing } from '../../lib/mapStyle.js';
 
 const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }));
 
@@ -180,6 +182,43 @@ function RideHistory() {
 
 // ---- The driver's home ----
 
+// ---- What the driver's map shows. Where the car is only appears once he has pressed "arrived", because there is no GPS ----
+
+function driverScene({ vehicle, ride, passengers, requests, zones }) {
+  const zone = zones?.find((z) => z.id === vehicle?.currentZoneId);
+  const area = zone ? [{ lat: zone.centerLat, lng: zone.centerLng }] : null;
+
+  if (ride?.pickupStand) {
+    const stand = ride.pickupStand;
+    const drops = passengers.map((p, i) => ({ lat: p.dropPoint.lat, lng: p.dropPoint.lng, label: String(i + 1) }));
+    const stops = [stand, ...drops];
+    const route = drops.map((drop, i) => [stops[i], drop]);
+    if (ride.status === 'OPEN') {
+      const waiting = passengers.length === 1 ? '1 to pick up' : `${passengers.length} to pick up`;
+      return { drops, route, stand: { lat: stand.lat, lng: stand.lng, badge: waiting }, focus: stops };
+    }
+    if (ride.status === 'ARRIVED') {
+      const heading = drops[0] ? Math.round(bearing(stand, drops[0])) : 0;
+      return { drops, route, stand: { lat: stand.lat, lng: stand.lng, mode: 'quiet' }, tesla: { lat: stand.lat, lng: stand.lng, heading }, focus: [stand], zoom: 16 };
+    }
+    return { drops, route, stand: { lat: stand.lat, lng: stand.lng, mode: 'quiet' }, focus: stops };
+  }
+
+  if (vehicle?.isOnline && requests?.length) {
+    const byStand = new Map();
+    for (const request of requests) {
+      if (!request.pickupStand) continue;
+      const entry = byStand.get(request.pickupStand.name) ?? { ...request.pickupStand, count: 0 };
+      entry.count += 1;
+      byStand.set(request.pickupStand.name, entry);
+    }
+    const stands = [...byStand.values()].map((s) => ({ lat: s.lat, lng: s.lng, badge: `${s.count} waiting` }));
+    if (stands.length) return { stands, focus: stands, zoom: 15 };
+  }
+
+  return area ? { focus: area, zoom: 14 } : { focus: 'home' };
+}
+
 export default function DriverPage() {
   const router = useRouter();
   const { data: me, isPending: meLoading } = useMe();
@@ -187,6 +226,13 @@ export default function DriverPage() {
   const logout = useLogout();
   const driverRide = useDriverRide({ enabled: Boolean(vehicle.data) });
   const [tripDone, setTripDone] = useState(false);
+  const zones = useZones();
+  const ride = driverRide.data?.ride;
+  const waiting = useDriverRequests({ enabled: Boolean(vehicle.data?.isOnline) && (!ride || ride.status === 'OPEN') });
+  useStage({
+    scene: driverScene({ vehicle: vehicle.data, ride, passengers: driverRide.data?.passengers ?? [], requests: ride ? [] : waiting.data, zones: zones.data }),
+    snap: vehicle.data === null ? 'full' : 'half',
+  });
 
   useEffect(() => {
     if (meLoading) return;
@@ -202,7 +248,7 @@ export default function DriverPage() {
   if (!me || me.role !== 'DRIVER') return null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">{vehicle.data ? vehicle.data.name : 'Add your Tesla'}</h1>
       {vehicle.data === null ? (
         <p className="mt-1 text-subhead text-label-secondary">Passengers can only be matched with a registered car.</p>

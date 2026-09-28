@@ -6,6 +6,7 @@ import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Segmented } fro
 import { Seat } from '../../components/icons.js';
 import { useRunScenario } from '../../lib/queries.js';
 import { formatDhakaClockMs } from '../../lib/format.js';
+import { useStage } from '../../components/MapStage.js';
 
 const KEY_STORAGE = 'seatase.demoKey';
 
@@ -139,6 +140,7 @@ function RaceResult({ result }) {
 // ---- The demo page: public, but the server only answers to the demo key ----
 
 export default function SeatRacePage() {
+  useStage({ snap: 'full' });
   const run = useRunScenario();
   const [scenario, setScenario] = useState('seat-race');
   const [key, setKey] = useState('');
@@ -164,7 +166,7 @@ export default function SeatRacePage() {
         : run.error?.message;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       <h1 className="text-large-title">Seat race</h1>
       <p className="mt-1 text-subhead text-label-secondary">{SCENARIOS[scenario].blurb} The database lets exactly one of them win.</p>
 

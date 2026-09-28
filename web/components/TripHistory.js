@@ -3,6 +3,8 @@
 import { Group, Separator, Row } from './ui.js';
 import { useRideInfo, useZones } from '../lib/queries.js';
 import { formatDhakaTime, formatTaka } from '../lib/format.js';
+import { useStage } from './MapStage.js';
+import { bearing } from '../lib/mapStyle.js';
 
 const OUTCOMES = { CANCELLED: 'Cancelled', EXPIRED: 'Expired', NO_SHOW: 'No-show' };
 
@@ -13,6 +15,12 @@ export function Receipt({ booking, onDone }) {
   const rideInfo = useRideInfo(booking.id, { enabled: true });
   const zoneName = (id) => zones.data?.find((zone) => zone.id === id)?.name;
   const ride = rideInfo.data;
+  const stand = booking.pickupStand;
+  const drop = booking.dropPoint;
+  useStage({
+    scene: stand && drop ? { drops: [drop], route: [stand, drop], tesla: { lat: drop.lat, lng: drop.lng, heading: Math.round(bearing(stand, drop)) }, focus: [stand, drop] } : { focus: 'home' },
+    snap: 'half',
+  });
 
   return (
     <div className="mb-10 flex flex-col gap-4">
@@ -48,7 +56,8 @@ export function Receipt({ booking, onDone }) {
             <Row>
               <span className="flex-1">Car</span>
               <span className="text-right text-label-secondary">
-                {ride.vehicle.name}, {ride.vehicle.registrationNo}
+                <span className="block">{ride.vehicle.name}</span>
+                <span className="block whitespace-nowrap text-footnote">{ride.vehicle.registrationNo}</span>
               </span>
             </Row>
           </>

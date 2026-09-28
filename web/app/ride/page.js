@@ -1,20 +1,31 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Group, Separator, Row, Field, PrimaryButton, ErrorText, Loading, QueryError } from '../../components/ui.js';
 import { useBookings, useCreateRequest, useFareQuote, useLogout, useMe, useNearestStand, useOnlineCount, usePlaceSearch, useZones } from '../../lib/queries.js';
 import { useDebounced } from '../../lib/useDebounced.js';
+import { useStage } from '../../components/MapStage.js';
 import RideOptions from '../../components/RideOptions.js';
 import ActiveBooking from '../../components/ActiveBooking.js';
 import { PastBookings, Receipt } from '../../components/TripHistory.js';
 import { ACTIVE_STATUSES, newIdempotencyKey, readDismissedReceipt, writeDismissedReceipt } from '../../lib/bookings.js';
 
-const RideMap = dynamic(() => import('../../components/RideMap.js'), {
-  ssr: false,
-  loading: () => <div className="h-56 rounded-cell bg-fill" />,
-});
+
+// ---- What the map shows while planning: the pickup, its stand, the walk, the trip ----
+
+function planScene(pickup, stand, drop, online) {
+  const onStand = pickup && stand && Math.abs(pickup.lat - stand.lat) < 1e-6 && Math.abs(pickup.lng - stand.lng) < 1e-6;
+  const scene = { focus: 'home' };
+  if (pickup && !onStand) scene.pin = { lat: pickup.lat, lng: pickup.lng };
+  if (stand) scene.stand = { lat: stand.lat, lng: stand.lng, ...(online > 0 ? { badge: `${online} ${online === 1 ? 'Tesla' : 'Teslas'} nearby` } : {}) };
+  if (scene.pin && scene.stand) scene.walk = true;
+  if (drop) scene.drops = [{ lat: drop.lat, lng: drop.lng }];
+  if (stand && drop) scene.route = [{ lat: stand.lat, lng: stand.lng }, { lat: drop.lat, lng: drop.lng }];
+  const points = [scene.pin, scene.stand, ...(scene.drops ?? [])].filter(Boolean);
+  if (points.length) scene.focus = points;
+  return scene;
+}
 
 const RECEIPT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -113,6 +124,8 @@ function PlanRide({ me }) {
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
   const shown = fields[active];
+  const online = useOnlineCount(nearest.data?.zone.id);
+  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place, online.data), snap: 'half' });
   const isPrivate = options.rideType === 'PRIVATE';
 
   function requestRide() {
@@ -134,12 +147,7 @@ function PlanRide({ me }) {
     <>
       <h1 className="text-large-title">Where to?</h1>
 
-      <div className="mt-6">
-        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} />
-      </div>
-      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place to see it on the map.</p>
-
-      <Group className="mt-6">
+      <Group className="mt-4" footer={fields.pickup.place && fields.drop.place ? undefined : 'Search for a place to see it on the map.'}>
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />
@@ -190,6 +198,8 @@ export default function RidePage() {
     else if (!me.phoneVerified) router.replace('/verify');
   }, [isPending, me, router]);
 
+  useStage({ enabled: bookings.isPending || bookings.isError });
+
   if (!me || me.role === 'DRIVER' || !me.phoneVerified) return null;
 
   const activeBooking = bookings.data?.find((booking) => ACTIVE_STATUSES.includes(booking.status));
@@ -198,7 +208,7 @@ export default function RidePage() {
   const showReceipt = lastTrip && lastTrip.id !== dismissedReceipt && Date.now() - new Date(lastTrip.droppedAt).getTime() < RECEIPT_WINDOW_MS;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10 pt-16">
+    <main className="flex flex-col">
       {bookings.isPending ? (
         <Loading>Loading your rides</Loading>
       ) : bookings.isError ? (
@@ -207,11 +217,17 @@ export default function RidePage() {
         <ActiveBooking booking={activeBooking} />
       ) : (
         <>
-          {showReceipt ? <Receipt booking={lastTrip} onDone={() => {
+          {showReceipt ? (
+            <Receipt
+              booking={lastTrip}
+              onDone={() => {
                 writeDismissedReceipt(lastTrip.id);
                 setDismissedReceipt(lastTrip.id);
-              }} /> : null}
-          <PlanRide me={me} />
+              }}
+            />
+          ) : (
+            <PlanRide me={me} />
+          )}
           <PastBookings bookings={finished} />
         </>
       )}

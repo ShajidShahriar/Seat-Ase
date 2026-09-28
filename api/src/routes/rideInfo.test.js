@@ -88,6 +88,7 @@ describe('GET /requests/:id/ride', () => {
       driverName: 'Jashim Uddin',
       vehicle: { name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111' },
       pickupStandName: 'Banani Road 11 police box',
+      pickupStand: { name: 'Banani Road 11 police box', lat: 23.7937, lng: 90.4076 },
       pickupZoneName: 'Banani',
       coRiders: [{ firstName: 'Rafiq', dropZoneName: 'Gulshan 1', seats: 1 }],
     });
