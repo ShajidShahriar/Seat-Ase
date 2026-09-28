@@ -81,7 +81,7 @@ function PickupPoint({ place }) {
       <Row>
         <span className="min-w-0 flex-1">
           <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
-          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.kind === 'PIN' ? 'your pin' : place.name}`}</span>
+          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.name}`}</span>
         </span>
       </Row>
       {online.data === undefined ? null : (
@@ -112,7 +112,6 @@ function PlanRide({ me }) {
     setFields((f) => ({ ...f, [active]: { text: place.name, place } }));
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
-  const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
   const isPrivate = options.rideType === 'PRIVATE';
 
@@ -136,9 +135,9 @@ function PlanRide({ me }) {
       <h1 className="text-large-title">Where to?</h1>
 
       <div className="mt-6">
-        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} onTap={dropPin} />
+        <RideMap pickup={fields.pickup.place} stand={nearest.data?.stand} drop={fields.drop.place} />
       </div>
-      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place, or tap the map to drop a pin.</p>
+      <p className="px-4 pt-1.5 text-footnote text-label-secondary">Search for a place to see it on the map.</p>
 
       <Group className="mt-6">
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />

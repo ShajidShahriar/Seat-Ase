@@ -24,14 +24,12 @@ const ICONS = {
   drop: pin('square', '#000000'),
 };
 
-// ---- The map: shows the pickup, its stand and the drop off, and reports taps ----
+// ---- The map: shows the pickup, its stand and the drop off ----
 
-export default function RideMap({ pickup, stand, drop, onTap }) {
+export default function RideMap({ pickup, stand, drop }) {
   const element = useRef(null);
   const map = useRef(null);
   const layer = useRef(null);
-  const tapHandler = useRef(onTap);
-  tapHandler.current = onTap;
 
   useEffect(() => {
     map.current = L.map(element.current, { center: DHAKA_CENTER, zoom: 13 });
@@ -40,7 +38,6 @@ export default function RideMap({ pickup, stand, drop, onTap }) {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map.current);
     layer.current = L.layerGroup().addTo(map.current);
-    map.current.on('click', (event) => tapHandler.current?.({ lat: event.latlng.lat, lng: event.latlng.lng }));
     return () => {
       map.current.remove();
       map.current = null;
@@ -71,5 +68,5 @@ export default function RideMap({ pickup, stand, drop, onTap }) {
     else if (points.length > 1) map.current.fitBounds(points, { padding: [40, 40], maxZoom: 16 });
   }, [pickup, stand, drop]);
 
-  return <div ref={element} className="h-56 overflow-hidden rounded-cell bg-fill" role="application" aria-label="Map of Dhaka. Tap to drop a pin." />;
+  return <div ref={element} className="h-56 overflow-hidden rounded-cell bg-fill" role="application" aria-label="Map of Dhaka showing your pickup, stand and drop-off." />;
 }
