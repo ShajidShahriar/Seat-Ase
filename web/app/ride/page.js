@@ -92,7 +92,7 @@ function PickupPoint({ place }) {
       <Row>
         <span className="min-w-0 flex-1">
           <span className="block">{boardsHere ? `Board at ${stand.name}` : `Walk ${walkMinutes} min to ${stand.name}`}</span>
-          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.kind === 'PIN' ? 'your pin' : place.name}`}</span>
+          <span className="block text-footnote text-label-secondary">{boardsHere ? 'Tesla stand' : `${distanceMeters} m from ${place.name}`}</span>
         </span>
       </Row>
       {online.data === undefined ? null : (
@@ -123,10 +123,9 @@ function PlanRide({ me }) {
     setFields((f) => ({ ...f, [active]: { text: place.name, place } }));
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
-  const dropPin = ({ lat, lng }) => pick({ id: null, kind: 'PIN', name: 'Pin on the map', lat, lng });
   const shown = fields[active];
   const online = useOnlineCount(nearest.data?.zone.id);
-  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place, online.data), snap: 'half', onTap: dropPin });
+  useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place, online.data), snap: 'half' });
   const isPrivate = options.rideType === 'PRIVATE';
 
   function requestRide() {
@@ -148,7 +147,7 @@ function PlanRide({ me }) {
     <>
       <h1 className="text-large-title">Where to?</h1>
 
-      <Group className="mt-4" footer={fields.pickup.place && fields.drop.place ? undefined : 'Search for a place, or tap the map to drop a pin.'}>
+      <Group className="mt-4" footer={fields.pickup.place && fields.drop.place ? undefined : 'Search for a place to see it on the map.'}>
         <Field id="pickup" label="Pickup" placeholder="Search a place" autoComplete="off" value={fields.pickup.text} onChange={type('pickup')} onFocus={() => setActive('pickup')} />
         <Separator />
         <Field id="drop" label="Drop off" placeholder="Search a place" autoComplete="off" value={fields.drop.text} onChange={type('drop')} onFocus={() => setActive('drop')} />

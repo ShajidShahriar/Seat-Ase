@@ -32,15 +32,13 @@ function markerElement(kind, spec) {
 // ---- The map. `scene` says what to show; the component works out what changed ----
 // scene: { pin, stand: { lat, lng, mode, badge }, stands: [ ...more stands ], drops: [{ lat, lng, label, done }], walk, route: [from, to] or [[from, to], ...], approach, tesla: { lat, lng, heading }, focus: 'home' | points }
 
-export default function MapView({ scene = {}, padding, onTap, className = '' }) {
+export default function MapView({ scene = {}, padding, className = '' }) {
   const container = useRef(null);
   const map = useRef(null);
   const markers = useRef(new Map());
   const drawnRoute = useRef('');
   const frame = useRef(0);
-  const tapHandler = useRef(onTap);
   const [ready, setReady] = useState(false);
-  tapHandler.current = onTap;
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +57,6 @@ export default function MapView({ scene = {}, padding, onTap, className = '' }) 
         map.current = instance;
         setReady(true);
       });
-      instance.on('click', (event) => tapHandler.current?.({ lat: event.lngLat.lat, lng: event.lngLat.lng }));
     });
     return () => {
       cancelled = true;

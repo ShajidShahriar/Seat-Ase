@@ -84,15 +84,14 @@ export function MapStage({ children }) {
   const [scene, setScene] = useState({ focus: 'home' });
   const [snap, setSnap] = useState('half');
   const [sheetShown, setSheetShown] = useState(0);
-  const tap = useRef(null);
 
   const onVisibleChange = useCallback((value) => setSheetShown(Math.round(value)), []);
   const padding = wide ? { top: 0, bottom: 0, left: PANEL_WIDTH + PANEL_GAP * 2, right: 0 } : { top: 0, bottom: sheetShown, left: 0, right: 0 };
 
   return (
-    <StageContext.Provider value={{ setScene, setSnap, tap }}>
+    <StageContext.Provider value={{ setScene, setSnap }}>
       <div className="fixed inset-0">
-        <MapView className="h-full w-full" scene={scene} padding={padding} onTap={(point) => tap.current?.(point)} />
+        <MapView className="h-full w-full" scene={scene} padding={padding} />
       </div>
       <Sheet snap={snap} wide={wide} onVisibleChange={onVisibleChange}>
         {children}
@@ -101,11 +100,10 @@ export function MapStage({ children }) {
   );
 }
 
-// ---- A page says what the map should show, how high the sheet sits, and what a tap on the map means ----
+// ---- A page says what the map should show, and how high the sheet sits ----
 
-export function useStage({ scene = { focus: 'home' }, snap = 'half', onTap = null, enabled = true } = {}) {
+export function useStage({ scene = { focus: 'home' }, snap = 'half', enabled = true } = {}) {
   const stage = useContext(StageContext);
-  if (enabled) stage.tap.current = onTap;
   const signature = JSON.stringify(scene);
   useEffect(() => {
     if (enabled) stage.setScene(JSON.parse(signature));
