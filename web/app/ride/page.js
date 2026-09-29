@@ -76,7 +76,7 @@ function onlineText(count, zoneName) {
 
 function PickupPoint({ place }) {
   const nearest = useNearestStand(place);
-  const online = useOnlineCount(nearest.data?.zone.id);
+  const online = useOnlineCount(nearest.data?.zone.id, nearest.data?.stand.id);
 
   if (nearest.isPending) return <p className="px-4 text-subhead text-label-secondary">Finding the nearest stand</p>;
   if (nearest.isError) return <ErrorText>{nearest.error.message}</ErrorText>;
@@ -124,7 +124,7 @@ function PlanRide({ me }) {
     setActive(active === 'pickup' && !fields.drop.place ? 'drop' : active);
   };
   const shown = fields[active];
-  const online = useOnlineCount(nearest.data?.zone.id);
+  const online = useOnlineCount(nearest.data?.zone.id, nearest.data?.stand.id);
   useStage({ scene: planScene(fields.pickup.place, nearest.data?.stand, fields.drop.place, online.data), snap: 'half' });
   const isPrivate = options.rideType === 'PRIVATE';
 

@@ -159,10 +159,10 @@ export function useFareQuote({ pickup, drop, seats }) {
   });
 }
 
-export function useOnlineCount(zoneId) {
+export function useOnlineCount(zoneId, standId) {
   return useQuery({
-    queryKey: ['online-count', zoneId],
-    queryFn: async () => (await api.get(`/zones/${zoneId}/online-count`)).count,
+    queryKey: ['online-count', zoneId, standId],
+    queryFn: async () => (await api.get(`/zones/${zoneId}/online-count${standId ? `?standId=${standId}` : ''}`)).count,
     enabled: Boolean(zoneId),
     refetchInterval: 30_000,
   });
