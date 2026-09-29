@@ -58,20 +58,70 @@ describe('who can reach /dev', () => {
   });
 });
 
-describe('reset keeps the base world', () => {
-  it('clears rides, requests and events but never the map or the users', async () => {
+describe('reset only touches the demo cast, and deletes nothing', () => {
+  it("ends the cast's rides and bookings, keeps every row, and never touches the map or the users", async () => {
     await run('seat-race');
-    const before = { zones: await count(zones), places: await count(places), distances: await count(zoneDistances), users: await count(users) };
+    const before = {
+      rides: await count(rides),
+      requests: await count(rideRequests),
+      events: await count(rideEvents),
+      map: { zones: await count(zones), places: await count(places), distances: await count(zoneDistances), users: await count(users) },
+    };
+    expect(before.rides).toBe(1);
 
     const res = await run('reset');
     expect(res.status).toBe(200);
 
-    expect(await count(rides)).toBe(0);
-    expect(await count(rideRequests)).toBe(0);
-    expect(await count(rideEvents)).toBe(0);
-    expect({ zones: await count(zones), places: await count(places), distances: await count(zoneDistances), users: await count(users) }).toEqual(before);
-    expect(before.zones).toBe(12);
-    expect(before.users).toBeGreaterThanOrEqual(5);
+    expect(await count(rides)).toBe(before.rides);
+    expect(await count(rideRequests)).toBe(before.requests);
+    expect(await count(rideEvents)).toBeGreaterThan(before.events);
+    expect({ zones: await count(zones), places: await count(places), distances: await count(zoneDistances), users: await count(users) }).toEqual(before.map);
+
+    const allRides = await db.select().from(rides);
+    expect(allRides.map((r) => [r.status, r.seatsTaken])).toEqual([['CANCELLED', 0]]);
+    const bookings = await db.select().from(rideRequests);
+    expect(bookings.every((b) => b.status === 'CANCELLED' || b.status === 'EXPIRED')).toBe(true);
+    const resetEvents = (await db.select().from(rideEvents)).filter((e) => e.type === 'DEMO_RESET');
+    expect(resetEvents.length).toBeGreaterThan(0);
+    expect((await db.select().from(vehicles)).every((v) => !v.isOnline)).toBe(true);
+  });
+
+  it("leaves someone else's finished trip, waiting booking and online car exactly as they were", async () => {
+    const zoneRows = await db.select().from(zones);
+    const banani = zoneRows.find((z) => z.name === 'Banani');
+    const mohakhali = zoneRows.find((z) => z.name === 'Mohakhali');
+    const trip = { pickupLat: banani.centerLat, pickupLng: banani.centerLng, dropLat: mohakhali.centerLat, dropLng: mohakhali.centerLng, seats: 1, rideType: 'SHARED', womenOnly: false };
+
+    const driver = request.agent(api);
+    await driver.post('/auth/signup').send({ name: 'Karim', phone: '01800000001', password: 'password123', role: 'DRIVER', gender: 'MALE', nid: '3000000001' });
+    await driver.post('/driver/vehicle').send({ name: 'Other', registrationNo: 'DHAKA-METRO-GA-99-9999', capacity: 3 });
+    await driver.post('/driver/online').send({ zoneId: banani.id });
+
+    async function evaluator(phone, nid, key) {
+      const agent = request.agent(api);
+      await agent.post('/auth/signup').send({ name: 'Evaluator', phone, password: 'password123', role: 'PASSENGER', gender: 'FEMALE', nid });
+      const sent = await agent.post('/auth/otp/send');
+      await agent.post('/auth/otp/verify').send({ code: sent.body.demoCode });
+      return (await agent.post('/requests').set('Idempotency-Key', key).send(trip).expect(201)).body.request.id;
+    }
+    const finishedId = await evaluator('01800000002', '3000000002', 'e1');
+    await driver.post(`/driver/ride/requests/${finishedId}/accept`).expect(200);
+    await driver.post('/driver/ride/arrived').expect(200);
+    await driver.post(`/driver/ride/requests/${finishedId}/board`).expect(200);
+    await driver.post('/driver/ride/start').expect(200);
+    await driver.post(`/driver/ride/requests/${finishedId}/drop`).expect(200);
+    await driver.post('/driver/online').send({ zoneId: banani.id }).expect(200);
+    const waitingId = await evaluator('01800000003', '3000000003', 'e2');
+    const eventsBefore = await count(rideEvents);
+
+    expect((await run('reset')).status).toBe(200);
+
+    const byId = new Map((await db.select().from(rideRequests)).map((b) => [b.id, b]));
+    expect(byId.get(finishedId).status).toBe('COMPLETED');
+    expect(byId.get(waitingId).status).toBe('REQUESTED');
+    const [karimsCar] = (await db.select().from(vehicles)).filter((v) => v.registrationNo === 'DHAKA-METRO-GA-99-9999');
+    expect(karimsCar.isOnline).toBe(true);
+    expect(await count(rideEvents)).toBe(eventsBefore);
   });
 });
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { normalizePhone } from '@seat-ase/shared';
 import { db } from '../db/client.js';
 import { rideEvents, rideRequests, rides, users, vehicles, zones, places } from '../db/schema.js';
@@ -9,16 +9,78 @@ import { AppError } from '../lib/AppError.js';
 import { goOnline } from './vehicleService.js';
 import { createRequest, ACTIVE_BOOKING_STATUSES } from './rideRequestService.js';
 import { acceptRequest } from './driverRideService.js';
+import { recordEvent } from './rideEventService.js';
+import { nudge } from '../realtime/nudges.js';
 
-// ---- Reset: only rides, requests and events go. Zones, places, distances and every user stay (base world only) ----
+// ---- Reset: ends whatever the demo cast is doing, deletes nothing, and never touches anyone else ----
+
+const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
+
+async function castIds() {
+  const phones = [...DRIVERS, ...PASSENGERS].map((member) => normalizePhone(member.phone));
+  const rows = await db.select({ id: users.id, role: users.role }).from(users).where(inArray(users.phone, phones));
+  return { all: rows.map((r) => r.id), drivers: rows.filter((r) => r.role === 'DRIVER').map((r) => r.id) };
+}
+
+async function endBooking(tx, booking, rideId) {
+  await tx.update(rideRequests).set({ status: 'CANCELLED' }).where(eq(rideRequests.id, booking.id));
+  await recordEvent({ rideId, requestId: booking.id, type: 'DEMO_RESET', fromStatus: booking.status, toStatus: 'CANCELLED' }, tx);
+}
 
 export async function resetWorld() {
-  await db.delete(rideEvents);
-  await db.delete(rideRequests);
-  await db.delete(rides);
-  await db.update(vehicles).set({ isOnline: false });
+  const cast = await castIds();
+  const ended = { rides: [], requestIds: [] };
+
+  if (cast.all.length > 0) {
+    await db.transaction(async (tx) => {
+      const castRides = await tx
+        .select()
+        .from(rides)
+        .where(
+          and(
+            inArray(rides.status, ACTIVE_RIDE_STATUSES),
+            or(
+              inArray(rides.driverId, cast.drivers),
+              inArray(
+                rides.id,
+                tx
+                  .select({ id: rideRequests.rideId })
+                  .from(rideRequests)
+                  .where(and(inArray(rideRequests.passengerId, cast.all), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES))),
+              ),
+            ),
+          ),
+        )
+        .for('update');
+
+      for (const ride of castRides) {
+        const bookings = await tx
+          .select({ id: rideRequests.id, status: rideRequests.status })
+          .from(rideRequests)
+          .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
+        for (const booking of bookings) await endBooking(tx, booking, ride.id);
+        await tx.update(rides).set({ status: 'CANCELLED', seatsTaken: 0 }).where(eq(rides.id, ride.id));
+        await recordEvent({ rideId: ride.id, type: 'DEMO_RESET', fromStatus: ride.status, toStatus: 'CANCELLED' }, tx);
+        ended.rides.push(ride);
+        ended.requestIds.push(...bookings.map((b) => b.id));
+      }
+
+      const waiting = await tx
+        .select({ id: rideRequests.id, status: rideRequests.status })
+        .from(rideRequests)
+        .where(and(inArray(rideRequests.passengerId, cast.all), eq(rideRequests.status, 'REQUESTED')));
+      for (const booking of waiting) await endBooking(tx, booking, null);
+      ended.requestIds.push(...waiting.map((b) => b.id));
+
+      await tx.update(vehicles).set({ isOnline: false }).where(inArray(vehicles.driverId, cast.all));
+    });
+  }
+
   await seedDrivers();
   await seedPassengers();
+
+  for (const ride of ended.rides) await nudge('DEMO_RESET', { rideId: ride.id, zoneId: ride.zoneId });
+  await nudge('DEMO_RESET', { requestIds: ended.requestIds });
 }
 
 // ---- Cast and places, looked up by the same phones the seed uses ----
@@ -128,6 +190,14 @@ async function eventLog(rideIds) {
   return rows;
 }
 
+async function castActiveRides() {
+  const { drivers } = await castIds();
+  return db
+    .select()
+    .from(rides)
+    .where(and(inArray(rides.driverId, drivers), inArray(rides.status, ACTIVE_RIDE_STATUSES)));
+}
+
 async function bookedSeats(rideId) {
   const matched = await db
     .select({ seats: rideRequests.seats })
@@ -154,7 +224,7 @@ export async function seatRace() {
     { label: 'Shirin', driverId: people.Jashim.id, requestId: shirinRequest.id },
   ]);
 
-  const allRides = await db.select().from(rides);
+  const allRides = await castActiveRides();
   const [ride] = allRides;
   const booked = await bookedSeats(ride.id);
   return {
@@ -182,7 +252,7 @@ export async function twoDrivers() {
     { label: 'Mokbul', driverId: people.Mokbul.id, requestId: shirinRequest.id },
   ]);
 
-  const allRides = await db.select().from(rides);
+  const allRides = await castActiveRides();
   const booked = allRides.length === 1 ? await bookedSeats(allRides[0].id) : 0;
   return {
     scenario: 'two-drivers',
@@ -202,7 +272,7 @@ let running = false;
 export const SCENARIOS = {
   reset: async () => {
     await resetWorld();
-    return { scenario: 'reset', title: 'Rides, requests and events cleared; the map and the cast are untouched' };
+    return { scenario: 'reset', title: "The demo cast's rides and bookings are ended; nothing is deleted and nobody else is touched" };
   },
   'seat-race': seatRace,
   'two-drivers': twoDrivers,
