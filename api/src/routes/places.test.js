@@ -3,8 +3,9 @@ import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, zones, places, rideEvents, rideRequests, rides } from '../db/schema.js';
+import { users, vehicles, zones, places, rideEvents, rideRequests, rides, otpCodes } from '../db/schema.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -49,12 +50,14 @@ beforeEach(async () => {
   await db.delete(rideRequests);
   await db.delete(rides);
   await db.delete(vehicles);
+  await db.delete(otpCodes);
   await db.delete(users);
 });
 
 async function signedInAgent(user) {
   const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
+  if (user.role === 'DRIVER') await verifyPhone(agent);
   return agent;
 }
 

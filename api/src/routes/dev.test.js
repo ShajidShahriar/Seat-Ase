@@ -13,6 +13,7 @@ import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, zones, places, zoneDistances, rides, rideRequests, rideEvents } from '../db/schema.js';
 import { createDemoGuard } from '../middleware/demoGuard.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -94,6 +95,7 @@ describe('reset only touches the demo cast, and deletes nothing', () => {
 
     const driver = request.agent(api);
     await driver.post('/auth/signup').send({ name: 'Karim', phone: '01800000001', password: 'password123', role: 'DRIVER', gender: 'MALE', nid: '3000000001' });
+    await verifyPhone(driver);
     await driver.post('/driver/vehicle').send({ name: 'Other', registrationNo: 'DHAKA-METRO-GA-99-9999', capacity: 3 });
     await driver.post('/driver/online').send({ zoneId: banani.id });
 

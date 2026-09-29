@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { addVehicleSchema, goOnlineSchema, idParamsSchema } from '@seat-ase/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import * as vehicleController from '../controllers/vehicleController.js';
 import * as driverRideController from '../controllers/driverRideController.js';
 
@@ -13,11 +14,11 @@ const validId = validate({ params: idParamsSchema });
 
 driverRoutes.post('/vehicle', validate({ body: addVehicleSchema }), vehicleController.addVehicle);
 driverRoutes.get('/vehicle', vehicleController.getVehicle);
-driverRoutes.post('/online', validate({ body: goOnlineSchema }), vehicleController.goOnline);
+driverRoutes.post('/online', requireVerified, validate({ body: goOnlineSchema }), vehicleController.goOnline);
 driverRoutes.post('/offline', vehicleController.goOffline);
 
 driverRoutes.get('/requests', driverRideController.listRequests);
-driverRoutes.post('/ride/requests/:id/accept', validId, driverRideController.accept);
+driverRoutes.post('/ride/requests/:id/accept', requireVerified, validId, driverRideController.accept);
 driverRoutes.post('/ride/cancel', driverRideController.cancelRide);
 driverRoutes.post('/ride/arrived', driverRideController.arrive);
 driverRoutes.post('/ride/requests/:id/board', validId, driverRideController.board);

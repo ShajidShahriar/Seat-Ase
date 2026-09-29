@@ -49,7 +49,7 @@ export default function SignupPage() {
     }
     setFormError(null);
     signup.mutate(form, {
-      onSuccess: ({ user }) => router.replace(user.role === 'PASSENGER' ? '/verify' : '/'),
+      onSuccess: () => router.replace('/verify'),
     });
   }
 

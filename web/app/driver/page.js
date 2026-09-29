@@ -238,6 +238,7 @@ export default function DriverPage() {
     if (meLoading) return;
     if (!me) router.replace('/login');
     else if (me.role !== 'DRIVER') router.replace('/');
+    else if (!me.phoneVerified) router.replace('/verify');
   }, [meLoading, me, router]);
 
   const hasRide = Boolean(driverRide.data?.ride);
@@ -245,7 +246,7 @@ export default function DriverPage() {
     if (hasRide) setTripDone(false);
   }, [hasRide]);
 
-  if (!me || me.role !== 'DRIVER') return null;
+  if (!me || me.role !== 'DRIVER' || !me.phoneVerified) return null;
 
   return (
     <main className="flex flex-col">
