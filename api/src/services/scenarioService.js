@@ -6,6 +6,7 @@ import { PASSENGERS, DRIVERS } from '../db/seed/cast.js';
 import { seedDrivers } from '../db/seed/drivers.js';
 import { seedPassengers } from '../db/seed/passengers.js';
 import { AppError } from '../lib/AppError.js';
+import { assertRideTransition, assertBookingTransition } from './rideStateMachine.js';
 import { goOnline } from './vehicleService.js';
 import { createRequest, ACTIVE_BOOKING_STATUSES } from './rideRequestService.js';
 import { acceptRequest } from './driverRideService.js';
@@ -23,6 +24,7 @@ async function castIds() {
 }
 
 async function endBooking(tx, booking, rideId) {
+  assertBookingTransition(booking.status, 'CANCELLED', 'DEMO');
   await tx.update(rideRequests).set({ status: 'CANCELLED' }).where(eq(rideRequests.id, booking.id));
   await recordEvent({ rideId, requestId: booking.id, type: 'DEMO_RESET', fromStatus: booking.status, toStatus: 'CANCELLED' }, tx);
 }
@@ -58,6 +60,7 @@ export async function resetWorld() {
           .select({ id: rideRequests.id, status: rideRequests.status })
           .from(rideRequests)
           .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
+        assertRideTransition(ride.status, 'CANCELLED', 'DEMO');
         for (const booking of bookings) await endBooking(tx, booking, ride.id);
         await tx.update(rides).set({ status: 'CANCELLED', seatsTaken: 0 }).where(eq(rides.id, ride.id));
         await recordEvent({ rideId: ride.id, type: 'DEMO_RESET', fromStatus: ride.status, toStatus: 'CANCELLED' }, tx);
