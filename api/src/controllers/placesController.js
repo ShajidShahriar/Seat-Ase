@@ -24,6 +24,6 @@ export async function nearestStand(req, res) {
 }
 
 export async function onlineCount(req, res) {
-  const count = await onlineCountInZone(req.params.zoneId);
+  const count = await onlineCountInZone(req.params.zoneId, req.valid.query.standId);
   res.json({ count });
 }

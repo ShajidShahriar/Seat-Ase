@@ -1,10 +1,9 @@
-import { and, eq, gt, inArray, notExists } from 'drizzle-orm';
+import { and, eq, gt, inArray, lt, not, notExists } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { rides, vehicles, zones } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 
 const STALE_AFTER_MINUTES = 5;
-const BUSY_RIDE_STATUSES = ['ARRIVED', 'STARTED'];
 const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
 
 export async function getVehicleByDriver(driverId) {
@@ -67,11 +66,22 @@ function rideInProgress(action) {
   return new AppError(409, 'RIDE_IN_PROGRESS', `You can't ${action} during a ride. Finish or cancel it first.`);
 }
 
+function canStillJoin(standId) {
+  return and(
+    eq(rides.status, 'OPEN'),
+    eq(rides.isPrivate, false),
+    lt(rides.seatsTaken, rides.capacity),
+    standId ? eq(rides.pickupStandId, standId) : undefined,
+  );
+}
+
 export async function touchLastSeen(driverId) {
   await db.update(vehicles).set({ lastSeenAt: new Date() }).where(eq(vehicles.driverId, driverId));
 }
 
-export async function onlineCountInZone(zoneId) {
+// ---- Teslas a passenger could actually get into: free ones, or one filling up at her stand with a seat left ----
+
+export async function onlineCountInZone(zoneId, standId) {
   const staleCutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60 * 1000);
   const rows = await db
     .select({ id: vehicles.id })
@@ -85,7 +95,7 @@ export async function onlineCountInZone(zoneId) {
           db
             .select({ id: rides.id })
             .from(rides)
-            .where(and(eq(rides.vehicleId, vehicles.id), inArray(rides.status, BUSY_RIDE_STATUSES))),
+            .where(and(eq(rides.vehicleId, vehicles.id), inArray(rides.status, ACTIVE_RIDE_STATUSES), not(canStillJoin(standId)))),
         ),
       ),
     );

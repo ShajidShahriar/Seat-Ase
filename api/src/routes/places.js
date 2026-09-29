@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { nearestStandSchema, zoneIdParamsSchema } from '@seat-ase/shared';
+import { nearestStandSchema, zoneIdParamsSchema, onlineCountQuerySchema } from '@seat-ase/shared';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import * as placesController from '../controllers/placesController.js';
@@ -8,7 +8,7 @@ export const placesRoutes = Router();
 
 placesRoutes.get('/places', requireAuth, placesController.searchPlaces);
 placesRoutes.get('/zones', requireAuth, placesController.listZones);
-placesRoutes.get('/zones/:zoneId/online-count', requireAuth, validate({ params: zoneIdParamsSchema }), placesController.onlineCount);
+placesRoutes.get('/zones/:zoneId/online-count', requireAuth, validate({ params: zoneIdParamsSchema, query: onlineCountQuerySchema }), placesController.onlineCount);
 placesRoutes.post(
   '/places/nearest-stand',
   requireAuth,

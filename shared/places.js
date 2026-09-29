@@ -6,3 +6,5 @@ export const nearestStandSchema = z.object({
 });
 
 export const zoneIdParamsSchema = z.object({ zoneId: z.uuid('That id is not valid.') });
+
+export const onlineCountQuerySchema = z.object({ standId: z.uuid('That id is not valid.').optional() });

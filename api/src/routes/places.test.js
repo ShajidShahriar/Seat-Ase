@@ -159,6 +159,33 @@ describe('GET /zones/:zoneId/online-count', () => {
     expect(await count()).toBe(1);
   });
 
+  it('counts a Tesla that is filling up only where it can still take her: its own stand, with a seat left, not private', async () => {
+    const driverAgent = await signedInAgent(jashim);
+    await driverAgent.post('/driver/vehicle').send({ name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 });
+    await driverAgent.post('/driver/online').send({ zoneId: bananiZoneId });
+    const [vehicle] = await db.select().from(vehicles);
+    const [bananiStand] = await db.select().from(places).where(eq(places.name, 'Banani Road 11 police box'));
+    const [otherStand] = await db.select().from(places).where(eq(places.name, 'Gulshan 1 DCC Market stand'));
+    const [ride] = await db
+      .insert(rides)
+      .values({ vehicleId: vehicle.id, driverId: vehicle.driverId, zoneId: bananiZoneId, pickupStandId: bananiStand.id, capacity: 3, seatsTaken: 1, status: 'OPEN' })
+      .returning();
+    const passengerAgent = await signedInAgent(nusrat);
+    const count = async (standId) => (await passengerAgent.get(`/zones/${bananiZoneId}/online-count?standId=${standId}`)).body.count;
+
+    expect(await count(bananiStand.id)).toBe(1);
+    expect(await count(otherStand.id)).toBe(0);
+    await db.update(rides).set({ seatsTaken: 3 }).where(eq(rides.id, ride.id));
+    expect(await count(bananiStand.id)).toBe(0);
+    await db.update(rides).set({ seatsTaken: 3, isPrivate: true }).where(eq(rides.id, ride.id));
+    expect(await count(bananiStand.id)).toBe(0);
+  });
+
+  it('rejects a standId that is not an id', async () => {
+    const passengerAgent = await signedInAgent(nusrat);
+    expect((await passengerAgent.get(`/zones/${bananiZoneId}/online-count?standId=abc`)).status).toBe(400);
+  });
+
   it('does not count a driver online in a different zone', async () => {
     const driverAgent = await signedInAgent(jashim);
     await driverAgent.post('/driver/vehicle').send({ name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 });
