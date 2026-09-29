@@ -25,6 +25,15 @@ describe('fareService', () => {
     expect(pooledFarePerSeatPoysha(2.5)).toBe(4000 + 6250 - 1562);
   });
 
+  it('prices a private ride as at most 3 seats, so a bigger Tesla never costs more than the quote', () => {
+    expect(privateFarePoysha(3.0, 6)).toBe(34500);
+    expect(privateFarePoysha(3.0, 4)).toBe(34500);
+  });
+
+  it('charges less than the quote in a smaller Tesla', () => {
+    expect(privateFarePoysha(3.0, 2)).toBe(23000);
+  });
+
   it('never discounts a private fare', () => {
     expect(privateFarePoysha(0, 3)).toBe(4000 * 3);
   });

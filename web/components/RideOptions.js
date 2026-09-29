@@ -52,7 +52,7 @@ export default function RideOptions({ isFemale, options, onChange, quote }) {
                 <span className="block">{isPrivate ? 'Private ride' : options.seats === 1 ? 'Shared ride' : `Shared ride, ${options.seats} seats`}</span>
                 <span className="block text-footnote text-label-secondary">
                   {isPrivate
-                    ? 'The whole Tesla, just you. Priced for its 3 seats, picked up at the same stand.'
+                    ? 'The whole Tesla, just you. Priced as 3 seats, picked up at the same stand.'
                     : `${formatTaka(quote.data.shared.soloPoysha)} if nobody else joins. You pay cash to the driver.`}
                 </span>
               </span>
