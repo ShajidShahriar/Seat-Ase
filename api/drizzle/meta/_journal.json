@@ -57,6 +57,13 @@
       "when": 1790496294996,
       "tag": "0007_drop_point",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790686754979,
+      "tag": "0008_fare_breakdown",
+      "breakpoints": true
     }
   ]
 }

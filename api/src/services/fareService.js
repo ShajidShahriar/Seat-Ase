@@ -30,3 +30,23 @@ export function estimateFares(distanceKm, { seats = 1, privateCapacity = PRIVATE
     privatePoysha: privateFarePoysha(distanceKm, privateCapacity),
   };
 }
+
+// ---- The same fare, shown step by step, so a receipt can be checked by hand ----
+
+export function fareBreakdown(distanceKm, { kind, seats = 1, capacity = PRIVATE_PRICED_SEATS }) {
+  const distancePoysha = distanceChargePoysha(distanceKm);
+  const poolDiscountPoysha = kind === 'POOLED' ? Math.floor(distancePoysha * POOL_DISCOUNT_RATE) : 0;
+  const perSeatPoysha = BASE_FARE_POYSHA + distancePoysha - poolDiscountPoysha;
+  const chargedSeats = kind === 'PRIVATE' ? Math.min(capacity, PRIVATE_PRICED_SEATS) : seats;
+  return {
+    kind,
+    distanceKm,
+    basePoysha: BASE_FARE_POYSHA,
+    perKmPoysha: PER_KM_POYSHA,
+    distancePoysha,
+    poolDiscountPoysha,
+    seats: chargedSeats,
+    perSeatPoysha,
+    totalPoysha: perSeatPoysha * chargedSeats,
+  };
+}

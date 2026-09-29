@@ -168,6 +168,7 @@ export const rideRequests = pgTable(
       .references(() => zones.id),
     fareCapPoysha: integer('fare_cap_poysha'),
     farePoysha: integer('fare_poysha'),
+    fareBreakdown: jsonb('fare_breakdown'),
     idempotencyKey: text('idempotency_key').notNull(),
     bodyHash: text('body_hash').notNull(),
     queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),

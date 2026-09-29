@@ -68,7 +68,7 @@ async function privateTripFare(capacity) {
   await jashim.post('/driver/ride/start').expect(200);
   await jashim.post(`/driver/ride/requests/${id}/drop`).expect(200);
   const [booking] = await db.select().from(rideRequests).where(eq(rideRequests.id, id));
-  return { quoted: quote.body.private.privatePoysha, charged: booking.farePoysha };
+  return { quoted: quote.body.private.privatePoysha, charged: booking.farePoysha, breakdown: booking.fareBreakdown };
 }
 
 describe('a private ride in a Tesla with more than 3 seats', () => {
@@ -76,5 +76,16 @@ describe('a private ride in a Tesla with more than 3 seats', () => {
     const { quoted, charged } = await privateTripFare(6);
     expect(quoted).toBe(34500);
     expect(charged).toBe(34500);
+  });
+});
+
+describe('the receipt can be checked by hand', () => {
+  it('stores how the fare was worked out when the trip starts', async () => {
+    const { charged, breakdown } = await privateTripFare(3);
+    expect(breakdown).toEqual({
+      kind: 'PRIVATE', distanceKm: 3, basePoysha: 4000, perKmPoysha: 2500, distancePoysha: 7500,
+      poolDiscountPoysha: 0, seats: 3, perSeatPoysha: 11500, totalPoysha: 34500, capPoysha: 34500, finalPoysha: 34500,
+    });
+    expect(charged).toBe(breakdown.finalPoysha);
   });
 });

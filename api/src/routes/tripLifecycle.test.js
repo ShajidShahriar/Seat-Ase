@@ -211,6 +211,7 @@ describe('POST /driver/ride/start', () => {
     const [nusratRow] = await db.select().from(rideRequests).where(eq(rideRequests.id, nusratReq));
     expect(nusratRow.status).toBe('IN_PROGRESS');
     expect(nusratRow.farePoysha).toBe(9625);
+    expect(nusratRow.fareBreakdown).toMatchObject({ kind: 'SOLO', totalPoysha: 11500, capPoysha: 9625, finalPoysha: 9625 });
 
     const [ride] = await db.select().from(rides);
     expect(ride.seatsTaken).toBe(1);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha, estimateFares } from './fareService.js';
+import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha, estimateFares, fareBreakdown } from './fareService.js';
 
 describe('fareService', () => {
   it('matches Nusrat and Rafiq pooled fares from the design (Scenario A)', () => {
@@ -48,5 +48,32 @@ describe('fareService', () => {
   it('treats 0km (same zone) as base fare only', () => {
     expect(soloFarePerSeatPoysha(0)).toBe(4000);
     expect(pooledFarePerSeatPoysha(0)).toBe(4000);
+  });
+});
+
+describe('fareBreakdown: the working behind a fare, for the receipt', () => {
+  it('Nusrat pooled, 3 km: 40 + 75 - 18.75 = 96.25', () => {
+    expect(fareBreakdown(3.0, { kind: 'POOLED', seats: 1 })).toEqual({
+      kind: 'POOLED', distanceKm: 3, basePoysha: 4000, perKmPoysha: 2500, distancePoysha: 7500,
+      poolDiscountPoysha: 1875, seats: 1, perSeatPoysha: 9625, totalPoysha: 9625,
+    });
+  });
+
+  it('solo, 3 km, 2 seats: (40 + 75) x 2 = 230', () => {
+    const b = fareBreakdown(3.0, { kind: 'SOLO', seats: 2 });
+    expect(b).toMatchObject({ poolDiscountPoysha: 0, perSeatPoysha: 11500, seats: 2, totalPoysha: 23000 });
+  });
+
+  it('private, 3 km: (40 + 75) x 3 seats = 345, even in a 6-seat Tesla', () => {
+    const b = fareBreakdown(3.0, { kind: 'PRIVATE', capacity: 6 });
+    expect(b).toMatchObject({ poolDiscountPoysha: 0, perSeatPoysha: 11500, seats: 3, totalPoysha: 34500 });
+  });
+
+  it('always agrees with the fare functions the rules use', () => {
+    for (const km of [0, 1, 2, 2.5, 3, 4, 7.5]) {
+      expect(fareBreakdown(km, { kind: 'POOLED', seats: 1 }).totalPoysha).toBe(pooledFarePerSeatPoysha(km));
+      expect(fareBreakdown(km, { kind: 'SOLO', seats: 1 }).totalPoysha).toBe(soloFarePerSeatPoysha(km));
+      expect(fareBreakdown(km, { kind: 'PRIVATE', capacity: 3 }).totalPoysha).toBe(privateFarePoysha(km, 3));
+    }
   });
 });
