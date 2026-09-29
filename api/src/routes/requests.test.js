@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
@@ -81,6 +82,19 @@ describe('POST /requests', () => {
     const res = await agent.post('/requests').send(nusratToMohakhaliBody());
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+  });
+
+  it('refuses an Idempotency-Key longer than 100 characters with a 400, not a 500', async () => {
+    const agent = await verifiedAgent(nusrat);
+    const res = await agent.post('/requests').set('Idempotency-Key', randomBytes(1500).toString('hex')).send(nusratToMohakhaliBody());
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('IDEMPOTENCY_KEY_INVALID');
+  });
+
+  it('accepts a 100-character Idempotency-Key', async () => {
+    const agent = await verifiedAgent(nusrat);
+    const res = await agent.post('/requests').set('Idempotency-Key', 'k'.repeat(100)).send(nusratToMohakhaliBody());
+    expect(res.status).toBe(201);
   });
 
   it('creates a booking with the nearest stand for a shared ride', async () => {

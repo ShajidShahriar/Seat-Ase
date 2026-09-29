@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { and, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
@@ -16,7 +17,7 @@ export function showsDemoCode(config = env) {
 }
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 export async function sendOtp(phone) {
