@@ -41,13 +41,17 @@ async function driverOnlineInBanani(name, phone, nid, plate) {
 }
 
 async function nusratWaiting() {
+  return passengerWaiting('Nusrat Jahan', '01700000030', 'FEMALE', '2000000001');
+}
+
+async function passengerWaiting(name, phone, gender, nid) {
   const agent = request.agent(api);
-  await agent.post('/auth/signup').send({ name: 'Nusrat Jahan', phone: '01700000030', password: 'password123', role: 'PASSENGER', gender: 'FEMALE', nid: '2000000001' });
+  await agent.post('/auth/signup').send({ name, phone, password: 'password123', role: 'PASSENGER', gender, nid });
   const sendRes = await agent.post('/auth/otp/send');
   await agent.post('/auth/otp/verify').send({ code: sendRes.body.demoCode });
   const res = await agent
     .post('/requests')
-    .set('Idempotency-Key', 'n1')
+    .set('Idempotency-Key', `${phone}-1`)
     .send({ pickupLat: BANANI.lat, pickupLng: BANANI.lng, dropLat: MOHAKHALI.lat, dropLng: MOHAKHALI.lng, seats: 1, rideType: 'SHARED', womenOnly: false });
   return res.body.request.id;
 }
@@ -91,5 +95,47 @@ describe('a driver cancels after ticking a passenger as boarded', () => {
     const [ride] = await db.select().from(rides).where(eq(rides.id, firstRideId));
     expect(ride.status).toBe('CANCELLED');
     expect(ride.seatsTaken).toBe(0);
+  });
+});
+
+describe('a driver cancels his ride and tries to take back only some of the passengers', () => {
+  async function cancelledWithTwo() {
+    const jashim = await driverOnlineInBanani('Jashim', '01700000010', '1000000001', 'DHAKA-METRO-GA-11-1111');
+    const mokbul = await driverOnlineInBanani('Mokbul', '01700000011', '1000000002', 'DHAKA-METRO-GA-22-2222');
+    const nusratId = await nusratWaiting();
+    const rafiqId = await passengerWaiting('Rafiq Ahmed', '01700000031', 'MALE', '2000000002');
+    await jashim.post(`/driver/ride/requests/${nusratId}/accept`).expect(200);
+    await jashim.post(`/driver/ride/requests/${rafiqId}/accept`).expect(200);
+    await jashim.post('/driver/ride/arrived').expect(200);
+    await jashim.post('/driver/ride/cancel').expect(200);
+    return { jashim, mokbul, nusratId, rafiqId };
+  }
+
+  it('refuses to let him accept any of them again', async () => {
+    const { jashim, nusratId } = await cancelledWithTwo();
+    const res = await jashim.post(`/driver/ride/requests/${nusratId}/accept`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('YOU_CANCELLED_THIS_BOOKING');
+    const [booking] = await db.select().from(rideRequests).where(eq(rideRequests.id, nusratId));
+    expect(booking.status).toBe('REQUESTED');
+  });
+
+  it('hides them from his waiting list, but not from other drivers', async () => {
+    const { jashim, mokbul, nusratId, rafiqId } = await cancelledWithTwo();
+    const his = await jashim.get('/driver/requests').expect(200);
+    expect(his.body.requests.map((r) => r.id)).toEqual([]);
+    const theirs = await mokbul.get('/driver/requests').expect(200);
+    expect(theirs.body.requests.map((r) => r.id).sort()).toEqual([nusratId, rafiqId].sort());
+  });
+
+  it('lets another driver accept them', async () => {
+    const { mokbul, nusratId } = await cancelledWithTwo();
+    await mokbul.post(`/driver/ride/requests/${nusratId}/accept`).expect(200);
+  });
+
+  it('still lets him accept new passengers', async () => {
+    const { jashim } = await cancelledWithTwo();
+    const shirinId = await passengerWaiting('Shirin Akter', '01700000032', 'FEMALE', '2000000003');
+    await jashim.post(`/driver/ride/requests/${shirinId}/accept`).expect(200);
   });
 });
