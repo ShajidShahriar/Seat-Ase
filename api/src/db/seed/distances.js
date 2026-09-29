@@ -21,18 +21,37 @@ const FIXED_KM = new Map([
 
 /**
  * Every unordered pair of zones with a distance in km: fixed values for the 6 pairs
- * the demo scenarios use, haversine * 1.3 (rounded to 0.5km) for the rest.
+ * the demo scenarios use, haversine * 1.3 (rounded to 0.5km) for the rest, then each
+ * pair shortened to the shortest route through the table, so a detour is never cheaper.
  */
 export function buildZoneDistances(zones) {
-  const pairs = [];
+  const names = zones.map((z) => z.name);
+  const km = new Map();
   for (let i = 0; i < zones.length; i++) {
     for (let j = i + 1; j < zones.length; j++) {
       const a = zones[i];
       const b = zones[j];
       const key = pairKey(a.name, b.name);
       const straightLineKm = haversineKm(a.centerLat, a.centerLng, b.centerLat, b.centerLng);
-      const km = FIXED_KM.get(key) ?? roundToHalf(straightLineKm * ROAD_FACTOR);
-      pairs.push({ fromName: a.name, toName: b.name, km });
+      km.set(key, FIXED_KM.get(key) ?? roundToHalf(straightLineKm * ROAD_FACTOR));
+    }
+  }
+
+  const between = (a, b) => (a === b ? 0 : km.get(pairKey(a, b)));
+  for (const via of names) {
+    for (const a of names) {
+      for (const b of names) {
+        if (a >= b || via === a || via === b) continue;
+        const detour = between(a, via) + between(via, b);
+        if (detour < between(a, b)) km.set(pairKey(a, b), detour);
+      }
+    }
+  }
+
+  const pairs = [];
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      pairs.push({ fromName: names[i], toName: names[j], km: between(names[i], names[j]) });
     }
   }
   return pairs;

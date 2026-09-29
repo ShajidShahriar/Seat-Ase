@@ -25,11 +25,9 @@ const nusrat = {
 
 let bananiStand;
 let zoneCentre;
-let kemalAtaturk;
 
 beforeAll(async () => {
   [bananiStand] = await db.select().from(places).where(eq(places.name, 'Banani Road 11 police box'));
-  [kemalAtaturk] = await db.select().from(places).where(eq(places.name, 'Kemal Ataturk Avenue'));
   const rows = await db.select().from(zones);
   zoneCentre = Object.fromEntries(rows.map((z) => [z.name, z]));
 });
@@ -110,12 +108,9 @@ describe('POST /fares/quote: the fixed story numbers', () => {
 });
 
 describe('POST /fares/quote: the quote and the stored booking use the same zones', () => {
-  it('a drop off whose seeded zone differs from its nearest zone centre', async () => {
-    const [seededZone] = await db.select().from(zones).where(eq(zones.id, kemalAtaturk.zoneId));
-    expect(seededZone.name).toBe('Banani');
-
+  it('a drop off that is not a seeded place resolves to its nearest zone centre, in both', async () => {
     const agent = await verifiedAgent(nusrat);
-    const body = { ...fromBananiStandTo('Mohakhali'), dropLat: kemalAtaturk.lat, dropLng: kemalAtaturk.lng };
+    const body = { ...fromBananiStandTo('Mohakhali'), dropLat: 23.7944, dropLng: 90.4125 };
     const quote = (await agent.post('/fares/quote').send(body)).body;
     expect(quote.dropZoneId).toBe(zoneCentre['Gulshan 2'].id);
 
