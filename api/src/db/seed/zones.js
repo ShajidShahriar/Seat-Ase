@@ -2,7 +2,7 @@
 export const ZONES = [
   { name: 'Banani', centerLat: 23.7937, centerLng: 90.4066 },
   { name: 'Gulshan 1', centerLat: 23.7808, centerLng: 90.4142 },
-  { name: 'Gulshan 2', centerLat: 23.7925, centerLng: 90.4078 },
+  { name: 'Gulshan 2', centerLat: 23.7946, centerLng: 90.4145 },
   { name: 'Mohakhali', centerLat: 23.7805, centerLng: 90.4053 },
   { name: 'Tejgaon', centerLat: 23.7644, centerLng: 90.3938 },
   { name: 'Farmgate', centerLat: 23.7581, centerLng: 90.3897 },
