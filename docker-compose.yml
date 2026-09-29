@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: seatase
       POSTGRES_DB: seatase
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -35,7 +35,7 @@ services:
       DEMO_MODE: "true"
       DEMO_KEY: ${DEMO_KEY:-local-docker-only-demo-key-never-use-online-0000}
     ports:
-      - "4000:4000"
+      - "${API_PORT:-4000}:4000"
 
   web:
     build:
