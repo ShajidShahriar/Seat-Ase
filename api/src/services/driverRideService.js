@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { rides, rideRequests, vehicles, users, zones, places } from '../db/schema.js';
+import { rides, rideRequests, rideEvents, vehicles, users, zones, places } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
 import { withDeadlockRetry } from '../lib/dbRetry.js';
 import { checkFit } from './matchService.js';
@@ -60,6 +60,23 @@ async function updateFareCaps(tx, ride) {
   }
 }
 
+// ---- No kick-out by cancel and re-accept: a driver never takes back a booking from a ride he cancelled ----
+
+function notCancelledBy(driverId) {
+  return notExists(
+    db
+      .select({ id: rideEvents.id })
+      .from(rideEvents)
+      .where(
+        and(
+          eq(rideEvents.requestId, rideRequests.id),
+          eq(rideEvents.actorId, driverId),
+          eq(rideEvents.type, 'RIDE_CANCELLED'),
+        ),
+      ),
+  );
+}
+
 async function acceptOnce(driverId, requestId, onTransactionStart) {
   return db.transaction(async (tx) => {
     await onTransactionStart?.(tx);
@@ -96,6 +113,14 @@ async function acceptOnce(driverId, requestId, onTransactionStart) {
 
     if (!candidateRow) {
       throw new AppError(404, 'NOT_FOUND', 'No such request.');
+    }
+
+    const [stillAllowed] = await tx
+      .select({ id: rideRequests.id })
+      .from(rideRequests)
+      .where(and(eq(rideRequests.id, requestId), notCancelledBy(driverId)));
+    if (!stillAllowed) {
+      throw new AppError(409, 'YOU_CANCELLED_THIS_BOOKING', 'You cancelled a ride with this passenger, so another driver will take them.');
     }
 
     const cutoff = new Date(Date.now() - REQUEST_EXPIRY_MINUTES * 60 * 1000);
@@ -256,6 +281,7 @@ export async function listWaitingRequests(driverId) {
       and(
         eq(rideRequests.status, 'REQUESTED'),
         ride ? eq(rideRequests.pickupStandId, ride.pickupStandId) : eq(rideRequests.pickupZoneId, vehicle.currentZoneId),
+        notCancelledBy(driverId),
       ),
     );
 
