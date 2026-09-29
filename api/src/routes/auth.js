@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
-import { signupSchema, loginSchema, verifyOtpSchema } from '@seat-ase/shared';
+import { signupSchema, loginSchema, verifyOtpSchema, normalizePhone } from '@seat-ase/shared';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { env } from '../config/env.js';
@@ -12,12 +12,20 @@ export const authRoutes = Router();
 export const AUTH_RATE_LIMIT = 10;
 export const AUTH_RATE_WINDOW_MS = 15 * 60 * 1000;
 
-// Keyed by phone, not just IP: several users can share one IP behind Vercel/Render's proxies.
+// ---- Keyed by the normalised phone (every spelling of a number is one key), counting failures only ----
+
+function phoneKey(req) {
+  const raw = req.body?.phone;
+  const phone = typeof raw === 'string' ? normalizePhone(raw) : null;
+  return phone ?? ipKeyGenerator(req.ip);
+}
+
 export function createAuthLimiter(limit) {
   return rateLimit({
     windowMs: AUTH_RATE_WINDOW_MS,
     limit,
-    keyGenerator: (req) => req.body?.phone ?? ipKeyGenerator(req.ip),
+    keyGenerator: phoneKey,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
   });
