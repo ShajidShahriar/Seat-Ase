@@ -182,7 +182,7 @@ export default function SeatRacePage() {
         />
       </div>
 
-      <Group className="mt-6" footer="It runs the real accept code twice at once. Each run clears the demo rides first.">
+      <Group className="mt-6" footer="It runs the real accept code twice at once. Each run first ends whatever the demo cast is doing; your own account is never touched.">
         <Field id="demo-key" label="Demo key" type="password" autoComplete="off" placeholder="From the README" value={key} onChange={(event) => setKey(event.target.value)} />
       </Group>
 

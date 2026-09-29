@@ -19,6 +19,7 @@ export const WHO_GETS_NUDGED = {
   STARTED: ['bookingOwners', 'rideDriver', 'ridePassengers', 'zoneDrivers'],
   DROPPED: ['bookingOwners', 'rideDriver', 'ridePassengers'],
   RIDE_AUTO_CLOSED: ['bookingOwners', 'rideDriver'],
+  DEMO_RESET: ['bookingOwners', 'rideDriver', 'zoneDrivers'],
 };
 
 const RIDE_BOOKING_STATUSES = ['MATCHED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];

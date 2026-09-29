@@ -37,6 +37,7 @@ export const EVENT_LABELS = {
   LEFT_BEHIND: 'The trip left without you, back to waiting',
   RIDE_CANCELLED: 'The driver cancelled the ride, back to waiting',
   RIDE_ABANDONED: 'Your driver did not reach the stand in time, back to waiting',
+  DEMO_RESET: 'Ended by a demo reset',
   RIDE_AUTO_CANCELLED: 'The ride was cancelled',
   RIDE_AUTO_CLOSED: 'The trip was closed automatically',
 };
