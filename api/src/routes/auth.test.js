@@ -202,6 +202,24 @@ describe('rate limiting', () => {
     expect(counts[429]).toBe(3);
   });
 
+  it('counts every spelling of one phone number as the same phone', async () => {
+    const testApp = await listenOnLoopback(appWithRealLimiter(3));
+    for (const phone of ['01799999999', '+8801799999999', '0179-9999999']) {
+      expect((await request(testApp).post('/login').send({ phone, password: 'wrongpass' })).status).toBe(401);
+    }
+    const blocked = await request(testApp).post('/login').send({ phone: '017 9999 9999', password: 'wrongpass' });
+    expect(blocked.status).toBe(429);
+  });
+
+  it('does not count successful logins, so a shared demo account cannot be locked out by using it', async () => {
+    await request(api).post('/auth/signup').send(jashim);
+    const testApp = await listenOnLoopback(appWithRealLimiter(3));
+    for (let i = 0; i < 10; i++) {
+      const res = await request(testApp).post('/login').send({ phone: jashim.phone, password: jashim.password });
+      expect(res.status, `login ${i + 1}`).toBe(200);
+    }
+  });
+
   it('keys by phone, so a different phone is unaffected', async () => {
     const testApp = await listenOnLoopback(appWithRealLimiter(1));
     await request(testApp).post('/login').send({ phone: '01799999999', password: 'wrongpass' });
