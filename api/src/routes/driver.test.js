@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
+import { eq } from 'drizzle-orm';
 import { app } from '../app.js';
 import { db } from '../db/client.js';
-import { users, vehicles, zones, rideEvents, rideRequests, rides } from '../db/schema.js';
+import { users, vehicles, zones, rideEvents, rideRequests, rides, otpCodes } from '../db/schema.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -34,6 +36,7 @@ const bullet = { name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capac
 async function signedInAgent(user) {
   const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
+  if (user.role === 'DRIVER') await verifyPhone(agent);
   return agent;
 }
 
@@ -42,7 +45,24 @@ beforeEach(async () => {
   await db.delete(rideRequests);
   await db.delete(rides);
   await db.delete(vehicles);
+  await db.delete(otpCodes);
   await db.delete(users);
+});
+
+describe('a driver must verify his phone before he drives', () => {
+  it('refuses going online with an unverified phone, and allows it once verified', async () => {
+    const [banani] = await db.select().from(zones).where(eq(zones.name, 'Banani'));
+    const agent = request.agent(api);
+    await agent.post('/auth/signup').send(jashim);
+    await agent.post('/driver/vehicle').send(bullet).expect(201);
+
+    const refused = await agent.post('/driver/online').send({ zoneId: banani.id });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.code).toBe('PHONE_NOT_VERIFIED');
+
+    await verifyPhone(agent);
+    expect((await agent.post('/driver/online').send({ zoneId: banani.id })).status).toBe(200);
+  });
 });
 
 describe('POST /driver/vehicle', () => {

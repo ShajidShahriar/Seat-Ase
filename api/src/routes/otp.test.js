@@ -5,6 +5,7 @@ import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideEvents, rideRequests, rides } from '../db/schema.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -26,6 +27,7 @@ const nusrat = {
 async function signedInAgent(user) {
   const agent = request.agent(api);
   await agent.post('/auth/signup').send(user);
+  if (user.role === 'DRIVER') await verifyPhone(agent);
   return agent;
 }
 

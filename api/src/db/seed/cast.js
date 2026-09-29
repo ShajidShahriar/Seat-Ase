@@ -35,12 +35,16 @@ export const DRIVERS = [
     name: 'Jashim',
     phone: '01700000010',
     password: DEFAULT_PASSWORD,
+    gender: 'MALE',
+    nid: '1234567880',
     vehicle: { name: 'Bullet', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity: 3 },
   },
   {
     name: 'Mokbul',
     phone: '01700000011',
     password: DEFAULT_PASSWORD,
+    gender: 'MALE',
+    nid: '1234567881',
     vehicle: { name: 'Toofan', registrationNo: 'DHAKA-METRO-GA-22-2222', capacity: 3 },
   },
 ];

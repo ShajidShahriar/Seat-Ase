@@ -4,6 +4,7 @@ import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideRequests, rideEvents, rides } from '../db/schema.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -25,6 +26,7 @@ beforeEach(async () => {
 async function signedUp(role, phone, nid) {
   const agent = request.agent(api);
   await agent.post('/auth/signup').send({ name: 'Test User', phone, password: 'password123', role, gender: 'FEMALE', nid });
+  if (role === 'DRIVER') await verifyPhone(agent);
   return agent;
 }
 

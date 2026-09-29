@@ -5,6 +5,7 @@ import { app } from '../app.js';
 import { db } from '../db/client.js';
 import { users, vehicles, otpCodes, rideRequests, rideEvents, rides, zones } from '../db/schema.js';
 import { listenOnLoopback, closeLoopbackServers } from '../test/loopback.js';
+import { verifyPhone } from '../test/verifyPhone.js';
 
 let api;
 
@@ -35,6 +36,7 @@ beforeEach(async () => {
 async function driverWithSeats(capacity) {
   const agent = request.agent(api);
   await agent.post('/auth/signup').send({ name: 'Jashim', phone: '01700000010', password: 'password123', role: 'DRIVER', gender: 'MALE', nid: '1000000001' });
+  await verifyPhone(agent);
   await agent.post('/driver/vehicle').send({ name: 'Big Tesla', registrationNo: 'DHAKA-METRO-GA-11-1111', capacity });
   await agent.post('/driver/online').send({ zoneId: bananiZoneId });
   return agent;

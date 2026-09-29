@@ -13,8 +13,8 @@ export default function Home() {
   useEffect(() => {
     if (isPending) return;
     if (!me) router.replace('/login');
-    else if (me.role === 'DRIVER') router.replace('/driver');
-    else router.replace(me.phoneVerified ? '/ride' : '/verify');
+    else if (!me.phoneVerified) router.replace('/verify');
+    else router.replace(me.role === 'DRIVER' ? '/driver' : '/ride');
   }, [isPending, me, router]);
 
   return null;

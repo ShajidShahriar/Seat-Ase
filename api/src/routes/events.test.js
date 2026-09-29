@@ -62,6 +62,8 @@ async function signupDriver(name, phone, nid) {
     .post('/auth/signup')
     .send({ name, phone, password: 'password123', role: 'DRIVER', gender: 'MALE', nid });
   const cookie = cookieFrom(res);
+  const sent = await request(server).post('/auth/otp/send').set('Cookie', cookie);
+  await request(server).post('/auth/otp/verify').set('Cookie', cookie).send({ code: sent.body.demoCode });
   await request(server).post('/driver/vehicle').set('Cookie', cookie).send({ name, registrationNo: `REG-${phone}`, capacity: 3 });
   await request(server).post('/driver/online').set('Cookie', cookie).send({ zoneId: bananiZoneId });
   return { id: res.body.user.id, cookie };
