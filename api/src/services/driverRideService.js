@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { rides, rideRequests, rideEvents, vehicles, users, zones, places } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
+import { assertRideTransition, assertBookingTransition } from './rideStateMachine.js';
 import { withDeadlockRetry } from '../lib/dbRetry.js';
 import { checkFit } from './matchService.js';
 import { getZoneDistanceKm } from './placesService.js';
@@ -165,6 +166,7 @@ async function acceptOnce(driverId, requestId, onTransactionStart) {
     }
 
     const claimedSeats = candidateRow.rideType === 'PRIVATE' ? ride.capacity : candidateRow.seats;
+    assertBookingTransition(candidateRow.status, 'MATCHED', 'DRIVER');
     const [claimed] = await tx
       .update(rideRequests)
       .set({ status: 'MATCHED', rideId: ride.id, seats: claimedSeats })
@@ -320,7 +322,9 @@ export async function cancelRide(driverId) {
       .from(rideRequests)
       .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
 
+    assertRideTransition(ride.status, 'CANCELLED', 'DRIVER');
     for (const booking of bookings) {
+      assertBookingTransition(booking.status, 'REQUESTED', 'DRIVER');
       await tx
         .update(rideRequests)
         .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null, boardedAt: null })
@@ -375,6 +379,8 @@ export async function arriveRide(driverId) {
       throw new AppError(409, 'RIDE_EMPTY', 'Nobody is booked into this ride yet.');
     }
 
+    assertRideTransition(ride.status, 'ARRIVED', 'DRIVER');
+    assertBookingTransition('MATCHED', 'DRIVER_ARRIVED', 'DRIVER');
     const [updatedRide] = await tx
       .update(rides)
       .set({ status: 'ARRIVED', arrivedAt: new Date() })
@@ -438,6 +444,7 @@ export async function markNoShow(driverId, requestId) {
       throw new AppError(409, 'ALREADY_BOARDED', 'This passenger already boarded.');
     }
 
+    assertBookingTransition(booking.status, 'NO_SHOW', 'DRIVER');
     const [updated] = await tx
       .update(rideRequests)
       .set({ status: 'NO_SHOW' })
@@ -449,6 +456,7 @@ export async function markNoShow(driverId, requestId) {
 
     const newSeatsTaken = ride.seatsTaken - booking.seats;
     const emptiedOut = newSeatsTaken <= 0;
+    if (emptiedOut) assertRideTransition(ride.status, 'CANCELLED', 'SYSTEM');
     await tx
       .update(rides)
       .set({ seatsTaken: newSeatsTaken, status: emptiedOut ? 'CANCELLED' : ride.status })
@@ -484,7 +492,9 @@ export async function startRide(driverId) {
       throw new AppError(409, 'NOBODY_BOARDED', 'At least one passenger must board before starting.');
     }
 
+    assertRideTransition(ride.status, 'STARTED', 'DRIVER');
     for (const booking of notBoarded) {
+      assertBookingTransition(booking.status, 'REQUESTED', 'DRIVER');
       await tx
         .update(rideRequests)
         .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null })
@@ -513,6 +523,7 @@ export async function startRide(driverId) {
           : (boardedCount >= 2 ? pooledFarePerSeatPoysha(distanceKm) : soloFarePerSeatPoysha(distanceKm)) * booking.seats;
       const finalFare = booking.fareCapPoysha == null ? calculatedFare : Math.min(calculatedFare, booking.fareCapPoysha);
 
+      assertBookingTransition(booking.status, 'IN_PROGRESS', 'DRIVER');
       await tx.update(rideRequests).set({ status: 'IN_PROGRESS', farePoysha: finalFare }).where(eq(rideRequests.id, booking.id));
 
       await recordEvent(
@@ -550,6 +561,7 @@ export async function dropPassenger(driverId, requestId) {
   const dropped = await db.transaction(async (tx) => {
     const ride = await getOwnedActiveRide(tx, driverId, ['STARTED']);
 
+    assertBookingTransition('IN_PROGRESS', 'COMPLETED', 'DRIVER');
     const [booking] = await tx
       .update(rideRequests)
       .set({ status: 'COMPLETED', droppedAt: new Date() })
@@ -571,6 +583,7 @@ export async function dropPassenger(driverId, requestId) {
 
     let updatedRide = ride;
     if (count === 0) {
+      assertRideTransition(ride.status, 'COMPLETED', 'DRIVER');
       [updatedRide] = await tx
         .update(rides)
         .set({ status: 'COMPLETED', completedAt: new Date() })

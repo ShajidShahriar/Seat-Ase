@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { rideRequests, rides, rideEvents, vehicles, users, zones, places } from '../db/schema.js';
 import { AppError } from '../lib/AppError.js';
+import { assertRideTransition, assertBookingTransition } from './rideStateMachine.js';
 import { hashBody } from '../lib/hash.js';
 import * as placesService from './placesService.js';
 import { recordEvent } from './rideEventService.js';
@@ -16,6 +17,7 @@ export const ARRIVE_WITHIN_MINUTES = 15;
 
 export async function expireStaleRequests() {
   const cutoff = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
+  assertBookingTransition('REQUESTED', 'EXPIRED', 'SYSTEM');
   const expired = await db
     .update(rideRequests)
     .set({ status: 'EXPIRED' })
@@ -39,6 +41,8 @@ export async function cancelAbandonedRides() {
       const [ride] = await tx.select().from(rides).where(and(eq(rides.id, id), eq(rides.status, 'OPEN'), lt(rides.createdAt, cutoff))).for('update');
       if (!ride) return null;
 
+      assertBookingTransition('MATCHED', 'REQUESTED', 'SYSTEM');
+      assertRideTransition(ride.status, 'CANCELLED', 'SYSTEM');
       const returned = await tx
         .update(rideRequests)
         .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null })
@@ -60,6 +64,8 @@ export async function autoCloseStaleRides() {
   const staleRides = await db.select().from(rides).where(and(eq(rides.status, 'STARTED'), lt(rides.startedAt, cutoff)));
 
   for (const ride of staleRides) {
+    assertRideTransition(ride.status, 'COMPLETED', 'SYSTEM');
+    assertBookingTransition('IN_PROGRESS', 'COMPLETED', 'SYSTEM');
     await db.update(rides).set({ status: 'COMPLETED', completedAt: new Date() }).where(eq(rides.id, ride.id));
     const closed = await db
       .update(rideRequests)
@@ -206,6 +212,7 @@ export async function cancelRequest(id, passengerId) {
     }
 
     if (existing.status === 'REQUESTED') {
+      assertBookingTransition(existing.status, 'CANCELLED', 'PASSENGER');
       const [updated] = await tx
         .update(rideRequests)
         .set({ status: 'CANCELLED' })
@@ -235,6 +242,7 @@ export async function cancelRequest(id, passengerId) {
         }
       }
 
+      assertBookingTransition(existing.status, 'CANCELLED', 'PASSENGER');
       const [updated] = await tx
         .update(rideRequests)
         .set({ status: 'CANCELLED' })
@@ -246,6 +254,7 @@ export async function cancelRequest(id, passengerId) {
 
       const newSeatsTaken = ride.seatsTaken - existing.seats;
       const emptiedOut = newSeatsTaken <= 0;
+      if (emptiedOut) assertRideTransition(ride.status, 'CANCELLED', 'SYSTEM');
       await tx
         .update(rides)
         .set({ seatsTaken: newSeatsTaken, status: emptiedOut ? 'CANCELLED' : ride.status })
