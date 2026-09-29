@@ -224,7 +224,19 @@ export async function acceptRequest(driverId, requestId, { onTransactionStart } 
   return result;
 }
 
-function serializeWaitingRequest(row, fit) {
+// ---- What the driver would collect: pooled and alone for shared seats, the whole car for private ----
+
+async function fareForCard(row, vehicle) {
+  const distanceKm = await getZoneDistanceKm(row.pickupZoneId, row.dropZoneId);
+  if (row.rideType === 'PRIVATE') return { distanceKm, privatePoysha: privateFarePoysha(distanceKm, vehicle.capacity) };
+  return {
+    distanceKm,
+    pooledPoysha: pooledFarePerSeatPoysha(distanceKm) * row.seats,
+    soloPoysha: soloFarePerSeatPoysha(distanceKm) * row.seats,
+  };
+}
+
+function serializeWaitingRequest(row, fit, fare) {
   return {
     id: row.id,
     seats: row.seats,
@@ -238,6 +250,7 @@ function serializeWaitingRequest(row, fit) {
     queuedAt: row.queuedAt,
     fits: fit.fits,
     reasons: fit.reasons,
+    fare,
   };
 }
 
@@ -296,7 +309,7 @@ export async function listWaitingRequests(driverId) {
       activeBookings.map((b) => b.dropZoneId),
     );
     const fit = checkFit({ ride: ride ?? null, activeBookings, candidate, zoneDistanceKm });
-    results.push(serializeWaitingRequest(candidate, fit));
+    results.push(serializeWaitingRequest(candidate, fit, await fareForCard(candidate, vehicle)));
   }
   return results;
 }
