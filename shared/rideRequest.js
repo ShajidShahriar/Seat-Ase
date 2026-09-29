@@ -9,3 +9,5 @@ export const createRideRequestSchema = z.object({
   rideType: z.enum(['SHARED', 'PRIVATE']).default('SHARED'),
   womenOnly: z.boolean().default(false),
 });
+
+export const idParamsSchema = z.object({ id: z.uuid('That id is not valid.') });
