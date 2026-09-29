@@ -18,11 +18,17 @@ export const ARRIVE_WITHIN_MINUTES = 15;
 export async function expireStaleRequests() {
   const cutoff = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
   assertBookingTransition('REQUESTED', 'EXPIRED', 'SYSTEM');
-  const expired = await db
-    .update(rideRequests)
-    .set({ status: 'EXPIRED' })
-    .where(and(eq(rideRequests.status, 'REQUESTED'), lt(rideRequests.queuedAt, cutoff)))
-    .returning({ id: rideRequests.id, pickupZoneId: rideRequests.pickupZoneId });
+  const expired = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(rideRequests)
+      .set({ status: 'EXPIRED' })
+      .where(and(eq(rideRequests.status, 'REQUESTED'), lt(rideRequests.queuedAt, cutoff)))
+      .returning({ id: rideRequests.id, pickupZoneId: rideRequests.pickupZoneId });
+    for (const row of rows) {
+      await recordEvent({ requestId: row.id, type: 'REQUEST_EXPIRED', fromStatus: 'REQUESTED', toStatus: 'EXPIRED' }, tx);
+    }
+    return rows;
+  });
 
   const byZone = Map.groupBy(expired, (r) => r.pickupZoneId);
   for (const [zoneId, rows] of byZone) {
@@ -126,6 +132,8 @@ export async function createRequest(passenger, body, idempotencyKey) {
     return { request: existing, replay: true };
   }
 
+  await expireStaleRequests();
+
   if (body.womenOnly && passenger.gender !== 'FEMALE') {
     throw new AppError(403, 'WOMEN_ONLY_REQUIRES_FEMALE', 'Only female passengers can request a women-only ride.');
   }
@@ -178,6 +186,7 @@ export async function describeBookings(rows) {
   const zoneById = new Map(dropZones.map((z) => [z.id, { lat: z.lat, lng: z.lng }]));
   return rows.map((row) => ({
     ...row,
+    expiresAt: row.status === 'REQUESTED' ? new Date(row.queuedAt.getTime() + EXPIRY_MINUTES * 60 * 1000).toISOString() : null,
     pickupStand: standById.get(row.pickupStandId) ?? null,
     dropPoint: row.dropLat != null ? { lat: row.dropLat, lng: row.dropLng } : zoneById.get(row.dropZoneId),
   }));

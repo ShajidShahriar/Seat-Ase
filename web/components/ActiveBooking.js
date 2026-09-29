@@ -8,6 +8,7 @@ import { EVENT_LABELS, STATUS_TITLES, STEPS, STEP_OF_STATUS } from '../lib/booki
 import { formatDhakaTime, formatTaka } from '../lib/format.js';
 import { useStage } from './MapStage.js';
 import { bearing } from '../lib/mapStyle.js';
+import { useNow } from '../lib/useNow.js';
 
 // ---- One sentence about the step the passenger is on ----
 
@@ -61,7 +62,15 @@ function bookingScene(booking) {
 
 // ---- A booking in progress: where it is, who is coming, what it costs, what has happened ----
 
+function expiryText(expiresAt, now) {
+  if (!expiresAt) return 'It expires after 15 minutes.';
+  const minutes = Math.ceil((Date.parse(expiresAt) - now) / 60_000);
+  if (minutes <= 0) return 'It is expiring now.';
+  return minutes === 1 ? 'It expires in 1 minute.' : `It expires in ${minutes} minutes.`;
+}
+
 export default function ActiveBooking({ booking }) {
+  const now = useNow(15_000);
   const zones = useZones();
   const cancel = useCancelBooking();
   const hasRide = booking.status !== 'REQUESTED';
@@ -181,7 +190,7 @@ export default function ActiveBooking({ booking }) {
               confirming
                 ? 'Your seat is given up and the driver is told.'
                 : booking.status === 'REQUESTED'
-                  ? 'Drivers in your area can see your request. It expires after 15 minutes.'
+                  ? `Drivers in your area can see your request. ${expiryText(booking.expiresAt, now)}`
                   : undefined
             }
           >

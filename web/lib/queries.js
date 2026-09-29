@@ -170,10 +170,19 @@ export function useOnlineCount(zoneId) {
 
 // ---- Passenger: bookings, asking for a ride, cancelling ----
 
+// ---- A waiting request expires on the server; ask again just after, so her screen never shows a stale "looking for a Tesla" ----
+
+function untilNextExpiry(bookings) {
+  const deadlines = (bookings ?? []).filter((b) => b.expiresAt).map((b) => Date.parse(b.expiresAt) - Date.now() + 2000);
+  if (deadlines.length === 0) return false;
+  return Math.min(Math.max(Math.min(...deadlines), 1000), 60_000);
+}
+
 export function useBookings() {
   return useQuery({
     queryKey: ['bookings', 'list'],
     queryFn: async () => (await api.get('/requests')).requests,
+    refetchInterval: (query) => untilNextExpiry(query.state.data),
   });
 }
 

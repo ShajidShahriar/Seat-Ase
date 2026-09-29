@@ -246,3 +246,37 @@ describe('service-area validation', () => {
     expect(res.body.error.code).toBe('OUTSIDE_SERVICE_AREA');
   });
 });
+
+describe('a waiting request that runs out of time', () => {
+  async function waitingSince(minutesAgo) {
+    const agent = await verifiedAgent(nusrat);
+    const res = await agent.post('/requests').set('Idempotency-Key', 'old').send(nusratToMohakhaliBody()).expect(201);
+    await db
+      .update(rideRequests)
+      .set({ queuedAt: new Date(Date.now() - minutesAgo * 60 * 1000) })
+      .where(eq(rideRequests.id, res.body.request.id));
+    return { agent, id: res.body.request.id };
+  }
+
+  it('does not block booking again: the old one is expired first', async () => {
+    const { agent, id } = await waitingSince(16);
+    const again = await agent.post('/requests').set('Idempotency-Key', 'new').send(nusratToMohakhaliBody());
+    expect(again.status).toBe(201);
+    const [old] = await db.select().from(rideRequests).where(eq(rideRequests.id, id));
+    expect(old.status).toBe('EXPIRED');
+  });
+
+  it('writes an expiry event to her timeline', async () => {
+    const { agent, id } = await waitingSince(16);
+    await agent.get('/requests').expect(200);
+    const timeline = (await agent.get(`/requests/${id}/timeline`).expect(200)).body.timeline;
+    expect(timeline.map((e) => e.type)).toContain('REQUEST_EXPIRED');
+  });
+
+  it('tells her screen exactly when it expires', async () => {
+    const { agent } = await waitingSince(5);
+    const [booking] = (await agent.get('/requests').expect(200)).body.requests;
+    const [row] = await db.select().from(rideRequests).where(eq(rideRequests.id, booking.id));
+    expect(new Date(booking.expiresAt).getTime()).toBe(row.queuedAt.getTime() + 15 * 60 * 1000);
+  });
+});
