@@ -9,6 +9,10 @@ export class ApiError extends Error {
   }
 }
 
+// ---- The free server sleeps when idle; while it wakes, the proxy answers 502/503/504 with no API error inside ----
+
+const WAKING_UP_STATUSES = [502, 503, 504];
+
 async function request(method, path, { body, headers } = {}) {
   let res;
   try {
@@ -25,6 +29,9 @@ async function request(method, path, { body, headers } = {}) {
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
 
+  if (!res.ok && !data?.error && WAKING_UP_STATUSES.includes(res.status)) {
+    throw new ApiError(res.status, 'WAKING_UP', 'Seat Ase? is waking up after a quiet spell. Try again in a minute.');
+  }
   if (!res.ok) {
     const error = data?.error ?? {};
     throw new ApiError(res.status, error.code ?? 'UNKNOWN', error.message ?? 'Something went wrong. Try again.', error.details);
