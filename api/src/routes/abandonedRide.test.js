@@ -140,3 +140,24 @@ describe('a driver who accepts but never reaches the stand (15 minutes)', () => 
     expect(still.status).toBe('ARRIVED');
   });
 });
+
+describe('the driver is told his deadlines by the server', () => {
+  it("gives an open ride's arrive-by time (first accept + 15 min) and the server's clock", async () => {
+    const { jashim, nusratId } = await matchedRide();
+    const res = await jashim.get('/driver/ride').expect(200);
+    const [ride] = await db.select().from(rides);
+    expect(new Date(res.body.ride.arriveBy).getTime()).toBe(ride.createdAt.getTime() + 15 * 60 * 1000);
+    expect(res.body.ride.noShowAllowedAt).toBeNull();
+    expect(Math.abs(new Date(res.body.serverNow).getTime() - Date.now())).toBeLessThan(5000);
+    expect(nusratId).toBeTruthy();
+  });
+
+  it('gives an arrived ride its no-show time (arrival + 5 min) and no arrive-by', async () => {
+    const { jashim } = await matchedRide();
+    await jashim.post('/driver/ride/arrived').expect(200);
+    const res = await jashim.get('/driver/ride').expect(200);
+    const [ride] = await db.select().from(rides);
+    expect(new Date(res.body.ride.noShowAllowedAt).getTime()).toBe(ride.arrivedAt.getTime() + 5 * 60 * 1000);
+    expect(res.body.ride.arriveBy).toBeNull();
+  });
+});

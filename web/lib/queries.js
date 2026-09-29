@@ -198,7 +198,10 @@ export function useCancelBooking() {
 export function useDriverRide({ enabled }) {
   return useQuery({
     queryKey: ['driver', 'ride'],
-    queryFn: () => api.get('/driver/ride'),
+    queryFn: async () => {
+      const data = await api.get('/driver/ride');
+      return { ...data, clockOffsetMs: data.serverNow ? Date.parse(data.serverNow) - Date.now() : 0 };
+    },
     enabled,
   });
 }

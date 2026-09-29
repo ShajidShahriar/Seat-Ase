@@ -7,7 +7,6 @@ import { useArrive, useBoard, useCancelRide, useDrop, useNoShow, useStart, useZo
 import { useNow } from '../lib/useNow.js';
 import { formatTaka } from '../lib/format.js';
 
-const NO_SHOW_WAIT_MS = 5 * 60 * 1000;
 
 // ---- Seats on this ride: filled for taken, outlined for free ----
 
@@ -76,7 +75,7 @@ function clock(ms) {
 
 // ---- The ride the driver has taken on, and what to do next ----
 
-export default function DriverRide({ ride, passengers, onCompleted }) {
+export default function DriverRide({ ride, passengers, clockOffsetMs = 0, onCompleted }) {
   const zones = useZones();
   const arrive = useArrive();
   const start = useStart();
@@ -85,7 +84,7 @@ export default function DriverRide({ ride, passengers, onCompleted }) {
   const [confirming, setConfirming] = useState(false);
   const arrived = ride.status === 'ARRIVED';
   const started = ride.status === 'STARTED';
-  const now = useNow(arrived ? 1000 : 60_000);
+  const now = useNow(1000) + clockOffsetMs;
   const zoneName = zones.data?.find((zone) => zone.id === ride.zoneId)?.name;
 
   useEffect(() => {
@@ -96,7 +95,8 @@ export default function DriverRide({ ride, passengers, onCompleted }) {
 
   const boardedCount = passengers.filter((passenger) => passenger.boardedAt).length;
   const leftBehind = passengers.filter((passenger) => !passenger.boardedAt).map((passenger) => passenger.passengerName);
-  const msUntilNoShow = arrived ? new Date(ride.arrivedAt).getTime() + NO_SHOW_WAIT_MS - now : 0;
+  const msUntilNoShow = ride.noShowAllowedAt ? Date.parse(ride.noShowAllowedAt) - now : 0;
+  const msUntilArriveBy = ride.arriveBy ? Date.parse(ride.arriveBy) - now : 0;
   const waitOver = msUntilNoShow <= 0;
 
   return (
@@ -138,6 +138,11 @@ export default function DriverRide({ ride, passengers, onCompleted }) {
           <PrimaryButton onClick={() => arrive.mutate()} loading={arrive.isPending}>
             I have arrived at the stand
           </PrimaryButton>
+          <p className="px-4 pt-1.5 text-footnote text-label-secondary">
+            {msUntilArriveBy > 0
+              ? `Press this within ${clock(msUntilArriveBy)}, or the ride is cancelled and your passengers go back to waiting.`
+              : 'Time is up. This ride is being cancelled and your passengers go back to waiting.'}
+          </p>
           <ErrorText>{arrive.error?.message}</ErrorText>
         </div>
       ) : null}

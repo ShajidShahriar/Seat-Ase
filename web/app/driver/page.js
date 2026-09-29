@@ -264,7 +264,7 @@ export default function DriverPage() {
       ) : (
         <>
           <p className={`mt-1 text-subhead ${vehicle.data.isOnline ? 'text-green' : 'text-label-secondary'}`}>{vehicle.data.isOnline ? 'You are online' : 'You are offline'}</p>
-          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} onCompleted={() => setTripDone(true)} /> : null}
+          {driverRide.data?.ride ? <DriverRide ride={driverRide.data.ride} passengers={driverRide.data.passengers} clockOffsetMs={driverRide.data.clockOffsetMs} onCompleted={() => setTripDone(true)} /> : null}
           {tripDone && !driverRide.data?.ride ? (
             <Group className="mt-8" footer="You are now in the area where you dropped the last passenger.">
               <Row>
