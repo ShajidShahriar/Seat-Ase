@@ -201,6 +201,7 @@ describe('GET /driver/requests: what a driver is shown before accepting', () => 
       womenOnly: true,
       seats: 2,
       fits: true,
+      fare: { distanceKm: 3, pooledPoysha: 19250, soloPoysha: 23000 },
     });
     for (const secret of ['passengerId', 'name', 'phone', 'gender', 'nid', 'pickupLat', 'pickupLng']) {
       expect(card).not.toHaveProperty(secret);
@@ -214,6 +215,7 @@ describe('GET /driver/requests: what a driver is shown before accepting', () => 
 
     const [card] = (await jashim.get('/driver/requests')).body.requests;
     expect(card).toMatchObject({ rideType: 'PRIVATE', pickupStandName: 'Banani Road 11 police box', pickupZoneName: 'Banani' });
+    expect(card.fare).toEqual({ distanceKm: 3, privatePoysha: 34500 });
     expect(card).not.toHaveProperty('pickupLat');
     expect(card).not.toHaveProperty('pickupLng');
   });

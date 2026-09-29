@@ -4,12 +4,20 @@ import { Group, PrimaryButton, ErrorText } from './ui.js';
 import { Seat } from './icons.js';
 import { useNow } from '../lib/useNow.js';
 import { useAcceptRequest, useZones } from '../lib/queries.js';
+import { formatTaka } from '../lib/format.js';
 
 // ---- How long a request has been waiting, in words ----
 
 function waitingText(queuedAt, now) {
   const minutes = Math.max(0, Math.floor((now - new Date(queuedAt).getTime()) / 60_000));
   return minutes === 0 ? 'Just now' : `${minutes} min`;
+}
+
+// ---- What he would collect, for the distance in the fare table ----
+
+function fareText(fare) {
+  if (fare.privatePoysha != null) return `${formatTaka(fare.privatePoysha)} for the whole Tesla, ${fare.distanceKm} km`;
+  return `${formatTaka(fare.pooledPoysha)} pooled, ${formatTaka(fare.soloPoysha)} alone, ${fare.distanceKm} km`;
 }
 
 // ---- One waiting request, as the driver sees it before accepting ----
@@ -21,7 +29,7 @@ export default function RequestCard({ request }) {
   const dropName = zones.data?.find((zone) => zone.id === request.dropZoneId)?.name;
   const isPrivate = request.rideType === 'PRIVATE';
 
-  const details = [isPrivate ? 'Private hire' : 'Shared', `${request.seats} ${request.seats === 1 ? 'seat' : 'seats'}`];
+  const details = isPrivate ? ['Private hire', 'whole Tesla'] : ['Shared', `${request.seats} ${request.seats === 1 ? 'seat' : 'seats'}`];
   if (request.womenOnly) details.push('Women-only');
 
   return (
@@ -40,13 +48,17 @@ export default function RequestCard({ request }) {
         </p>
 
         <div className="mt-2 flex items-center gap-2 text-subhead">
-          <span className="flex gap-0.5" aria-hidden="true">
-            {Array.from({ length: request.seats }, (_, index) => (
-              <Seat key={index} />
-            ))}
-          </span>
+          {isPrivate ? null : (
+            <span className="flex gap-0.5" aria-hidden="true">
+              {Array.from({ length: request.seats }, (_, index) => (
+                <Seat key={index} />
+              ))}
+            </span>
+          )}
           <span>{details.join(', ')}</span>
         </div>
+
+        {request.fare ? <p className="mt-1 text-subhead">{fareText(request.fare)}</p> : null}
 
         {request.fits ? (
           <div className="mt-3">
