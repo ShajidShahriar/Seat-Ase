@@ -6,7 +6,7 @@ import { assertRideTransition, assertBookingTransition } from './rideStateMachin
 import { withDeadlockRetry } from '../lib/dbRetry.js';
 import { checkFit } from './matchService.js';
 import { getZoneDistanceKm } from './placesService.js';
-import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha } from './fareService.js';
+import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha, fareBreakdown } from './fareService.js';
 import { recordEvent } from './rideEventService.js';
 import { ACTIVE_BOOKING_STATUSES, ARRIVE_WITHIN_MINUTES, expireStaleRequests, autoCloseStaleRides, cancelAbandonedRides } from './rideRequestService.js';
 import { nudge } from '../realtime/nudges.js';
@@ -530,14 +530,13 @@ export async function startRide(driverId) {
 
     for (const booking of boarded) {
       const distanceKm = await getZoneDistanceKm(ride.zoneId, booking.dropZoneId);
-      const calculatedFare =
-        booking.rideType === 'PRIVATE'
-          ? privateFarePoysha(distanceKm, ride.capacity)
-          : (boardedCount >= 2 ? pooledFarePerSeatPoysha(distanceKm) : soloFarePerSeatPoysha(distanceKm)) * booking.seats;
-      const finalFare = booking.fareCapPoysha == null ? calculatedFare : Math.min(calculatedFare, booking.fareCapPoysha);
+      const kind = booking.rideType === 'PRIVATE' ? 'PRIVATE' : boardedCount >= 2 ? 'POOLED' : 'SOLO';
+      const working = fareBreakdown(distanceKm, { kind, seats: booking.seats, capacity: ride.capacity });
+      const finalFare = booking.fareCapPoysha == null ? working.totalPoysha : Math.min(working.totalPoysha, booking.fareCapPoysha);
+      const breakdown = { ...working, capPoysha: booking.fareCapPoysha ?? null, finalPoysha: finalFare };
 
       assertBookingTransition(booking.status, 'IN_PROGRESS', 'DRIVER');
-      await tx.update(rideRequests).set({ status: 'IN_PROGRESS', farePoysha: finalFare }).where(eq(rideRequests.id, booking.id));
+      await tx.update(rideRequests).set({ status: 'IN_PROGRESS', farePoysha: finalFare, fareBreakdown: breakdown }).where(eq(rideRequests.id, booking.id));
 
       await recordEvent(
         {

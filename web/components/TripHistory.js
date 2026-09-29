@@ -8,6 +8,32 @@ import { bearing } from '../lib/mapStyle.js';
 
 const OUTCOMES = { CANCELLED: 'Cancelled', EXPIRED: 'Expired', NO_SHOW: 'No-show' };
 
+// ---- How the fare was worked out, line by line, so it can be checked by hand ----
+
+function FareLines({ breakdown }) {
+  const lines = [
+    ['Base fare', formatTaka(breakdown.basePoysha)],
+    [`${breakdown.distanceKm} km × ${formatTaka(breakdown.perKmPoysha)}`, formatTaka(breakdown.distancePoysha)],
+  ];
+  if (breakdown.poolDiscountPoysha > 0) lines.push(['Shared, 25% off the distance', `− ${formatTaka(breakdown.poolDiscountPoysha)}`]);
+  if (breakdown.seats > 1) {
+    const what = breakdown.kind === 'PRIVATE' ? 'Whole Tesla, priced as' : '×';
+    lines.push([`${formatTaka(breakdown.perSeatPoysha)} a seat, ${what} ${breakdown.seats} seats`, formatTaka(breakdown.totalPoysha)]);
+  }
+  if (breakdown.capPoysha != null && breakdown.capPoysha < breakdown.totalPoysha) {
+    lines.push(['Never more than your matched price', `− ${formatTaka(breakdown.totalPoysha - breakdown.capPoysha)}`]);
+  }
+  return lines.map(([label, amount]) => (
+    <div key={label}>
+      <Separator />
+      <Row>
+        <span className="flex-1 text-label-secondary">{label}</span>
+        <span className="text-label-secondary">{amount}</span>
+      </Row>
+    </div>
+  ));
+}
+
 // ---- The receipt for the trip that just finished ----
 
 export function Receipt({ booking, onDone }) {
@@ -62,6 +88,7 @@ export function Receipt({ booking, onDone }) {
             </Row>
           </>
         ) : null}
+        {booking.fareBreakdown ? <FareLines breakdown={booking.fareBreakdown} /> : null}
         <Separator />
         <Row>
           <span className="flex-1 text-headline">Total</span>
