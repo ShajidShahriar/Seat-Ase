@@ -109,6 +109,9 @@ export async function createRequest(passenger, body, idempotencyKey) {
   if (!idempotencyKey) {
     throw new AppError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'The Idempotency-Key header is required.');
   }
+  if (idempotencyKey.length > 100) {
+    throw new AppError(400, 'IDEMPOTENCY_KEY_INVALID', 'The Idempotency-Key header must be at most 100 characters.');
+  }
 
   const bodyHash = hashBody(body);
   const [existing] = await db
