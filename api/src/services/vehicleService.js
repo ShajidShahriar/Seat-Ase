@@ -5,6 +5,7 @@ import { AppError } from '../lib/AppError.js';
 
 const STALE_AFTER_MINUTES = 5;
 const BUSY_RIDE_STATUSES = ['ARRIVED', 'STARTED'];
+const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
 
 export async function getVehicleByDriver(driverId) {
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.driverId, driverId));
@@ -30,21 +31,40 @@ export async function goOnline(driverId, zoneId) {
   const [updated] = await db
     .update(vehicles)
     .set({ isOnline: true, currentZoneId: zoneId, lastSeenAt: new Date() })
-    .where(eq(vehicles.driverId, driverId))
+    .where(and(eq(vehicles.driverId, driverId), noActiveRide()))
     .returning();
+  if (!updated) throw rideInProgress('change your area');
   return updated;
 }
 
 export async function goOffline(driverId) {
+  const vehicle = await getVehicleByDriver(driverId);
+  if (!vehicle) {
+    throw new AppError(409, 'NO_VEHICLE', 'You have no vehicle to go offline.');
+  }
+
   const [updated] = await db
     .update(vehicles)
     .set({ isOnline: false })
-    .where(eq(vehicles.driverId, driverId))
+    .where(and(eq(vehicles.id, vehicle.id), noActiveRide()))
     .returning();
-  if (!updated) {
-    throw new AppError(409, 'NO_VEHICLE', 'You have no vehicle to go offline.');
-  }
+  if (!updated) throw rideInProgress('go offline');
   return updated;
+}
+
+// ---- A driver with an open, arrived or started ride keeps his area and stays online until it ends ----
+
+function noActiveRide() {
+  return notExists(
+    db
+      .select({ id: rides.id })
+      .from(rides)
+      .where(and(eq(rides.vehicleId, vehicles.id), inArray(rides.status, ACTIVE_RIDE_STATUSES))),
+  );
+}
+
+function rideInProgress(action) {
+  return new AppError(409, 'RIDE_IN_PROGRESS', `You can't ${action} during a ride. Finish or cancel it first.`);
 }
 
 export async function touchLastSeen(driverId) {
