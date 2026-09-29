@@ -8,7 +8,7 @@ import { checkFit } from './matchService.js';
 import { getZoneDistanceKm } from './placesService.js';
 import { soloFarePerSeatPoysha, pooledFarePerSeatPoysha, privateFarePoysha } from './fareService.js';
 import { recordEvent } from './rideEventService.js';
-import { ACTIVE_BOOKING_STATUSES, expireStaleRequests, autoCloseStaleRides, cancelAbandonedRides } from './rideRequestService.js';
+import { ACTIVE_BOOKING_STATUSES, ARRIVE_WITHIN_MINUTES, expireStaleRequests, autoCloseStaleRides, cancelAbandonedRides } from './rideRequestService.js';
 import { nudge } from '../realtime/nudges.js';
 
 const ACTIVE_RIDE_STATUSES = ['OPEN', 'ARRIVED', 'STARTED'];
@@ -600,6 +600,16 @@ export async function dropPassenger(driverId, requestId) {
   return dropped;
 }
 
+// ---- The deadlines the driver's screen counts down to, worked out here so the phone's clock never decides a rule ----
+
+function rideDeadlines(ride) {
+  const plus = (date, minutes) => new Date(date.getTime() + minutes * 60 * 1000).toISOString();
+  return {
+    arriveBy: ride.status === 'OPEN' ? plus(ride.createdAt, ARRIVE_WITHIN_MINUTES) : null,
+    noShowAllowedAt: ride.status === 'ARRIVED' && ride.arrivedAt ? plus(ride.arrivedAt, NO_SHOW_WAIT_MINUTES) : null,
+  };
+}
+
 export async function getDriverRide(driverId) {
   await expireStaleRequests();
   await cancelAbandonedRides();
@@ -651,7 +661,7 @@ export async function getDriverRide(driverId) {
   withDistance.sort((a, b) => a.distanceFromPickupKm - b.distanceFromPickupKm);
 
   const [stand] = ride.pickupStandId ? await db.select({ name: places.name, lat: places.lat, lng: places.lng }).from(places).where(eq(places.id, ride.pickupStandId)) : [];
-  return { ride: { ...ride, pickupStand: stand ?? null }, passengers: withDistance };
+  return { ride: { ...ride, pickupStand: stand ?? null, ...rideDeadlines(ride) }, passengers: withDistance, serverNow: new Date().toISOString() };
 }
 
 export async function getDriverHistory(driverId) {
