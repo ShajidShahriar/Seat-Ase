@@ -290,14 +290,14 @@ export async function cancelRide(driverId) {
     }
 
     const bookings = await tx
-      .select({ id: rideRequests.id })
+      .select({ id: rideRequests.id, status: rideRequests.status })
       .from(rideRequests)
       .where(and(eq(rideRequests.rideId, ride.id), inArray(rideRequests.status, ACTIVE_BOOKING_STATUSES)));
 
     for (const booking of bookings) {
       await tx
         .update(rideRequests)
-        .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null })
+        .set({ status: 'REQUESTED', rideId: null, queuedAt: new Date(), fareCapPoysha: null, boardedAt: null })
         .where(eq(rideRequests.id, booking.id));
       await recordEvent(
         {
@@ -305,14 +305,18 @@ export async function cancelRide(driverId) {
           requestId: booking.id,
           actorId: driverId,
           type: 'RIDE_CANCELLED',
-          fromStatus: 'MATCHED',
+          fromStatus: booking.status,
           toStatus: 'REQUESTED',
         },
         tx,
       );
     }
 
-    const [cancelled] = await tx.update(rides).set({ status: 'CANCELLED' }).where(eq(rides.id, ride.id)).returning();
+    const [cancelled] = await tx
+      .update(rides)
+      .set({ status: 'CANCELLED', seatsTaken: 0 })
+      .where(eq(rides.id, ride.id))
+      .returning();
     return { cancelled, requestIds: bookings.map((b) => b.id) };
   });
 
