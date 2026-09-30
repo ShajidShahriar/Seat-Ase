@@ -2,6 +2,7 @@ import './globals.css';
 import { Providers } from './providers.js';
 import SignedInAs from '../components/SignedInAs.js';
 import { MapStage } from '../components/MapStage.js';
+import WakingUpNotice from '../components/WakingUpNotice.js';
 
 export const metadata = {
   title: 'Seat Ase?',
@@ -19,7 +20,10 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <Providers>
-          <MapStage>{children}</MapStage>
+          <MapStage>
+            <WakingUpNotice />
+            {children}
+          </MapStage>
           <SignedInAs />
         </Providers>
       </body>
