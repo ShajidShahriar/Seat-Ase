@@ -5,8 +5,8 @@
 A ride-pooling app for Dhaka's "Teslas": three-wheeled, battery-powered, entirely un-Elon-affiliated auto-rickshaws.
 This repository is my take-home submission for the RoBenDevs SWE Intern role.
 
--  **Live App:** https://seat-ase-web.vercel.app
--  **System Design Document:** [Google Docs](https://docs.google.com/document/d/1QtQkNdZ9xmjYGuJcq-WdbvNtZHhwGTtPMNOFQozNqPI/edit?tab=t.0) (or view the [PDF in this repository](Seat%20Ase_%20System%20Design%2C%20Final%20Version%20(v1.0.0).pdf))
+- 🌐 **Live App:** https://seat-ase-web.vercel.app
+- 📄 **System Design Document:** [Google Docs](https://docs.google.com/document/d/1QtQkNdZ9xmjYGuJcq-WdbvNtZHhwGTtPMNOFQozNqPI/edit?tab=t.0) (or view the [PDF in this repository](Seat%20Ase_%20System%20Design%2C%20Final%20Version%20(v1.0.0).pdf))
 - 🎥 **Demo Video:** [Google Drive Walkthrough](https://drive.google.com/file/d/15GDr68LYAWQxFQqWA--mLjnh3vy_7np5/view?usp=sharing)
 
 ## 1. The problem
