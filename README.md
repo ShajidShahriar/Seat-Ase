@@ -453,7 +453,7 @@ I used two AI tools on this project, for two different jobs.
 
 **Claude** did most of the actual thinking with me. I used it to brainstorm the system design itself, which went through six or seven versions before I settled on the one this repo implements (see Section 13 for the summary, and `devlog.md` for the full session-by-session record). Later, once the design was built, I had it do a structured review of the finished code against that design, which surfaced around 66 gaps and bugs. I worked through that list in priority order rather than all at once.
 
-Every piece of code and every decision was checked manually before it went anywhere near a commit. For anything Claude helped write, I verified it by writing test cases with it, running them, and only committing and pushing once they actually passed. Nothing landed on `master` on the strength of "looks right."
+Every piece of code and every decision was checked manually before it went anywhere near a commit. For anything Claude helped write, I verified it by writing test cases with it, running them, and only committing and pushing once they  passed.
 
 **GitHub Copilot**, through VS Code's commit-message shortcut, wrote most of the actual commit messages. It reads the staged diff directly, and the results were explanatory enough on their own that I didn't need to rewrite them by hand for most commits.
 
