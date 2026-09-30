@@ -274,7 +274,7 @@ Render refuses to start in production if `JWT_SECRET`, `NID_PEPPER`, or (when `D
 ## 9. Running it locally
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/ShajidShahriar/Seat-Ase.git
 cd Seat-Ase
 docker compose up -d --build
 ```
@@ -349,7 +349,7 @@ A runnable Postman collection covering the whole flow (signup through a complete
 
 ## 13. Key decisions and trade-offs
 
-The design went through six or seven versions before I settled on the one this repo actually implements. Each version is dated, with what changed and why. The full history is here: **[link to the design doc, to add]**. What's below is a summary: the key decisions and trade-offs from the final version, plus a few rule changes I made after building had already started, once the code surfaced a problem the design hadn't accounted for.
+The design went through six or seven versions before I settled on the one this repo actually implements. Each version is dated, with what changed and why. The full history is in the [System Design Document](https://docs.google.com/document/d/1QtQkNdZ9xmjYGuJcq-WdbvNtZHhwGTtPMNOFQozNqPI/edit?tab=t.0) (and locally in [Seat Ase_ System Design, Final Version (v1.0.0).pdf](Seat%20Ase_%20System%20Design%2C%20Final%20Version%20(v1.0.0).pdf)). What's below is a summary: the key decisions and trade-offs from the final version, plus a few rule changes I made after building had already started, once the code surfaced a problem the design hadn't accounted for.
 
 - **A driver can never re-accept a booking he personally cancelled.** Early on, nothing stopped a driver from cancelling a whole ride and immediately re-accepting everyone except the one passenger he didn't want, which is a kick-out through the back door and exactly what the "no kick-out" rule was supposed to prevent. The fix reuses the ride's own event history instead of adding a new timer: if a `RIDE_CANCELLED` event exists with that driver as the actor for that specific booking, he can't take it back. There's no expiry to track, and it's scoped to that one booking; if the passenger books again later, that's a fresh booking and any driver can take it.
 - **Private rides are picked up at the stand, like shared rides**, rather than at the passenger's door. "Private" only means the whole Tesla is reserved for one booking, not a different pickup experience.
