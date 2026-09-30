@@ -262,7 +262,7 @@ All of these are documented with placeholder values in `.env.example`. Copy it t
 | `DATABASE_URL` | Postgres connection string | must start with `postgres://` |
 | `JWT_SECRET` | signs login session tokens | rotate freely; production requires at least 32 characters and refuses the example value |
 | `NID_PEPPER` | HMAC key for the NID fingerprint (enforces one NID, one account) | set once and never change, since old fingerprints can't be recomputed with a new key; 32+ characters in production |
-| `DEMO_KEY` | header key required by the `/dev` demo routes (Seat Race) | 32+ characters if `DEMO_MODE=true` in production; not published in this README, shared with the evaluator separately |
+| `DEMO_KEY` | header key required by the `/dev` demo routes (Seat Race) | 32+ characters if `DEMO_MODE=true` in production; not published in this README — submitted with this assignment, in the Google Form's "Additional Supporting Link" field |
 | `DEMO_MODE` | shows the OTP code on screen instead of sending an SMS | `true` locally and in the demo deployment; would be `false` with a real SMS provider |
 | `COOKIE_SECURE` | marks the session cookie HTTPS-only | `false` on localhost, `true` in production |
 | `SSE_HEARTBEAT_MS` | how often a live-update heartbeat is sent | default 25000 |
