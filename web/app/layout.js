@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import { Providers } from './providers.js';
 import SignedInAs from '../components/SignedInAs.js';
@@ -26,6 +27,7 @@ export default function RootLayout({ children }) {
           </MapStage>
           <SignedInAs />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
