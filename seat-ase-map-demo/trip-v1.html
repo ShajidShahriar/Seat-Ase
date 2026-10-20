@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f2f2f7" />
+<title>Seat Ase? Map Preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  /* ---- Tokens: the same Apple greys, Uber black and one blue as the app ---- */
+  :root {
+    --label: #000;
+    --label-2: rgb(60 60 67 / 0.6);
+    --label-3: rgb(60 60 67 / 0.3);
+    --separator: rgb(60 60 67 / 0.18);
+    --fill: rgb(120 120 128 / 0.12);
+    --grouped: #f2f2f7;
+    --cell: #fff;
+    --primary: #000;
+    --blue: #0a84ff;
+    --blue-text: #0040dd;
+    --green: #248a3d;
+    --green-fill: #34c759;
+    --red: #d70015;
+    --sheet-radius: 20px;
+    --cell-radius: 12px;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--grouped); }
+  body { font: 17px/22px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif; color: var(--label); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  #map { position: fixed; inset: 0; }
+
+  /* ---- The sheet: a bottom sheet on phones, a floating panel on wide screens ---- */
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 92dvh; background: var(--grouped);
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+    box-shadow: 0 -1px 0 var(--separator), 0 -8px 30px rgb(0 0 0 / 0.08);
+    transform: translateY(calc(92dvh - var(--visible, 45dvh)));
+    transition: transform 0.45s var(--ease);
+    display: flex; flex-direction: column; touch-action: none;
+  }
+  .sheet.dragging { transition: none; }
+  .grabber { padding: 8px 0 4px; display: grid; place-items: center; cursor: grab; flex: none; }
+  .grabber span { width: 36px; height: 5px; border-radius: 3px; background: var(--label-3); }
+  .sheet-body { overflow-y: auto; padding: 4px 16px calc(24px + env(safe-area-inset-bottom)); touch-action: pan-y; flex: 1; }
+  @media (min-width: 768px) {
+    .sheet { left: 16px; top: 16px; bottom: 16px; right: auto; width: 380px; height: auto; transform: none; border-radius: var(--sheet-radius); box-shadow: 0 10px 40px rgb(0 0 0 / 0.12); }
+    .grabber { display: none; }
+    .sheet-body { padding-top: 20px; }
+  }
+
+  /* ---- Type and grouped lists ---- */
+  h1 { font-size: 28px; line-height: 34px; font-weight: 700; margin: 4px 4px 14px; letter-spacing: -0.4px; }
+  .sub { font-size: 15px; line-height: 20px; color: var(--label-2); margin: -8px 4px 16px; }
+  .group { background: var(--cell); border-radius: var(--cell-radius); overflow: hidden; margin-bottom: 20px; }
+  .group-header { font-size: 13px; color: var(--label-2); text-transform: uppercase; margin: 0 16px 6px; }
+  .group-footer { font-size: 13px; line-height: 18px; color: var(--label-2); margin: -14px 16px 20px; }
+  .row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 16px; width: 100%; text-align: left; position: relative; }
+  .row + .row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--separator); }
+  button.row:active { background: var(--fill); }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .detail { font-size: 13px; line-height: 18px; color: var(--label-2); display: block; }
+  .muted { color: var(--label-2); }
+  .strong { font-weight: 600; }
+
+  /* ---- The two place fields with the dot and square, like Uber ---- */
+  .fields { display: grid; grid-template-columns: 28px 1fr; background: var(--cell); border-radius: var(--cell-radius); margin-bottom: 20px; position: relative; }
+  .fields .rail { display: flex; flex-direction: column; align-items: center; padding: 20px 0 20px 12px; }
+  .rail .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+  .rail .line { width: 2px; flex: 1; background: var(--label-3); margin: 4px 0; border-radius: 1px; }
+  .rail .square { width: 8px; height: 8px; background: var(--primary); }
+  .fields input { width: 100%; border: 0; outline: 0; font: inherit; height: 44px; padding: 0 16px 0 8px; background: transparent; }
+  .fields input::placeholder { color: var(--label-3); }
+  .fields input.active { background: var(--fill); border-radius: 8px; }
+  .fields .sep { height: 1px; background: var(--separator); margin-left: 8px; }
+  .fields .inputs { display: flex; flex-direction: column; justify-content: center; padding: 4px 8px 4px 0; }
+
+  /* ---- Controls ---- */
+  .segmented { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; margin-bottom: 20px; }
+  .segmented button { flex: 1; height: 32px; border-radius: 7px; font-size: 15px; font-weight: 500; }
+  .segmented button[aria-checked='true'] { background: var(--cell); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+  .segmented button:active { opacity: 0.6; }
+  .switch { width: 51px; height: 31px; border-radius: 16px; background: var(--fill); position: relative; flex: none; transition: background 0.2s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.25); transition: transform 0.25s var(--ease); }
+  .switch[aria-checked='true'] { background: var(--green-fill); }
+  .switch[aria-checked='true']::after { transform: translateX(20px); }
+  .primary { width: 100%; height: 50px; border-radius: 12px; background: var(--primary); color: #fff; font-weight: 600; }
+  .primary:active { opacity: 0.8; }
+  .text-red { color: var(--red); }
+  .fare { font-size: 22px; line-height: 28px; font-weight: 700; }
+
+  /* ---- Stepper ---- */
+  .stepper { list-style: none; margin: 0; padding: 16px; }
+  .stepper li { display: flex; gap: 12px; }
+  .stepper .col { display: flex; flex-direction: column; align-items: center; }
+  .stepper .node { width: 12px; height: 12px; border-radius: 50%; background: var(--fill); margin-top: 5px; flex: none; transition: background 0.3s; }
+  .stepper .done .node { background: var(--primary); }
+  .stepper .here .node { background: #fff; box-shadow: inset 0 0 0 3px var(--primary); }
+  .stepper .bar { width: 2px; flex: 1; min-height: 14px; margin: 4px 0; background: var(--fill); }
+  .stepper .done .bar { background: var(--primary); }
+  .stepper .text { padding-bottom: 14px; }
+  .stepper li:last-child .text { padding-bottom: 0; }
+  .stepper .todo .label { color: var(--label-3); }
+  .stepper .here .label { font-weight: 600; }
+  .stepper .note { font-size: 15px; line-height: 20px; color: var(--label-2); margin-top: 2px; }
+
+  /* ---- Sheet content changes: a short rise, never a fade on scroll ---- */
+  .enter { animation: rise 0.35s var(--ease) both; }
+  @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ---- Map markers, drawn by hand ---- */
+  .m-pin { width: 16px; height: 16px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); }
+  .m-drop { width: 16px; height: 16px; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); }
+  .m-stand { position: relative; width: 18px; height: 18px; }
+  .m-stand .core { position: absolute; inset: 0; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); z-index: 2; }
+  .m-stand .ring { position: absolute; inset: -14px; border-radius: 50%; background: rgb(10 132 255 / 0.22); animation: pulse 2.2s ease-out infinite; }
+  .m-stand .ring.r2 { animation-delay: 1.1s; }
+  .m-stand.searching .ring { inset: -70px; background: rgb(10 132 255 / 0.14); animation-duration: 2.6s; }
+  .m-stand.searching .ring.r2 { animation-delay: 1.3s; }
+  @keyframes pulse { from { transform: scale(0.2); opacity: 1; } to { transform: scale(1); opacity: 0; } }
+  .m-label { position: absolute; left: 50%; top: -34px; transform: translateX(-50%); white-space: nowrap; background: #fff; border-radius: 8px; padding: 3px 8px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgb(0 0 0 / 0.15); z-index: 3; }
+  .m-tesla { width: 34px; height: 34px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgb(0 0 0 / 0.25); display: grid; place-items: center; }
+  .m-tesla svg { transition: transform 0.3s linear; }
+  .drop-in { animation: dropin 0.5s var(--ease) both; }
+  @keyframes dropin { from { transform: translateY(-24px) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .maplibregl-ctrl-attrib { font-size: 11px; background: rgb(255 255 255 / 0.8) !important; }
+  .maplibregl-ctrl-bottom-right { bottom: var(--attrib-offset, 0px); transition: bottom 0.45s var(--ease); }
+  .tag { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 5; background: #fff; border-radius: 16px; padding: 6px 12px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 10px rgb(0 0 0 / 0.12); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring { display: none; }
+    .enter, .drop-in { animation: none; }
+    .sheet { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Map of Dhaka"></div>
+<div class="tag">Design preview</div>
+<section class="sheet" id="sheet" aria-label="Ride">
+  <div class="grabber" id="grabber"><span></span></div>
+  <div class="sheet-body" id="body"></div>
+</section>
+
+<script>
+// ---- Real data from the app's seed: the Banani stand, nearby places, the fixed fares ----
+
+const STAND = { name: 'Banani Road 11 police box', lng: 90.4076, lat: 23.7937 };
+const PICKUPS = [
+  { name: 'Banani Road 11 police box', kind: 'Tesla stand, Banani', lng: 90.4076, lat: 23.7937 },
+  { name: 'Banani Rail Crossing', kind: 'Landmark, Banani', lng: 90.4046, lat: 23.7967 },
+  { name: 'Kemal Ataturk Avenue', kind: 'Landmark, Banani', lng: 90.4096, lat: 23.7917 },
+];
+const DROPS = [
+  { name: 'Mohakhali bus stand', kind: 'Tesla stand, Mohakhali', zone: 'Mohakhali', km: 3, lng: 90.4063, lat: 23.7805 },
+  { name: 'Mohakhali DOHS gate', kind: 'Landmark, Mohakhali', zone: 'Mohakhali', km: 3, lng: 90.4073, lat: 23.7835 },
+  { name: 'Gulshan 1 DCC Market stand', kind: 'Tesla stand, Gulshan 1', zone: 'Gulshan 1', km: 2, lng: 90.4152, lat: 23.7818 },
+  { name: 'Gulshan 1 Circle', kind: 'Landmark, Gulshan 1', zone: 'Gulshan 1', km: 2, lng: 90.4132, lat: 23.7808 },
+  { name: 'Tejgaon Link Road stand', kind: 'Tesla stand, Tejgaon', zone: 'Tejgaon', km: 4, lng: 90.3938, lat: 23.7654 },
+];
+const TESLA_START = { lng: 90.4151, lat: 23.7945 };
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const solo = (km) => 4000 + Math.round(km * 2500);
+const pooled = (km) => 4000 + Math.round(km * 2500) - Math.floor(Math.round(km * 2500) * 0.25);
+const taka = (p) => `Tk ${p % 100 === 0 ? p / 100 : (p / 100).toFixed(2)}`;
+
+function walkMinutes(a, b) {
+  const R = 6371, toR = (d) => (d * Math.PI) / 180;
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
+  const km = 2 * R * Math.asin(Math.sqrt(h));
+  return { minutes: Math.max(1, Math.round(((km * 1.3) / 5) * 60)), meters: Math.round(km * 1000) };
+}
+
+// ---- A curved line between two points, the way Uber previews a trip before it has a route ----
+
+function arc(a, b, bend = 0.22, steps = 64) {
+  const mx = (a.lng + b.lng) / 2, my = (a.lat + b.lat) / 2;
+  const dx = b.lng - a.lng, dy = b.lat - a.lat;
+  const cx = mx - dy * bend, cy = my + dx * bend;
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, u = 1 - t;
+    pts.push([u * u * a.lng + 2 * u * t * cx + t * t * b.lng, u * u * a.lat + 2 * u * t * cy + t * t * b.lat]);
+  }
+  return pts;
+}
+
+function bearing(p, q) {
+  return (Math.atan2(q[0] - p[0], q[1] - p[1]) * 180) / Math.PI;
+}
+
+// ---- The map style: OpenFreeMap's Positron, recoloured to sit under the app's greys ----
+
+async function loadStyle() {
+  const style = await (await fetch('https://tiles.openfreemap.org/styles/positron')).json();
+  const drop = /shield|boundary|aeroway|railway_.*dash|label_country|label_state|highway-name-path|landcover_ice|landcover_glacier/;
+  style.layers = style.layers.filter((l) => !drop.test(l.id));
+  const paint = (id, props) => { const l = style.layers.find((x) => x.id === id); if (l) l.paint = { ...(l.paint || {}), ...props }; };
+  paint('background', { 'background-color': '#f2f2f4' });
+  paint('water', { 'fill-color': '#cfe0ef' });
+  paint('park', { 'fill-color': '#dfeadb', 'fill-opacity': 1 });
+  paint('landcover_wood', { 'fill-color': '#dfeadb', 'fill-opacity': 0.8 });
+  paint('landuse_residential', { 'fill-color': '#ececef', 'fill-opacity': 1 });
+  paint('building', { 'fill-color': '#e3e3e8', 'fill-outline-color': '#dadadf' });
+  paint('waterway', { 'line-color': '#cfe0ef' });
+  for (const l of style.layers) {
+    if (l.type === 'line' && /highway|road|tunnel/.test(l.id)) {
+      l.paint = { ...(l.paint || {}), 'line-color': /casing/.test(l.id) ? '#dcdce1' : '#ffffff' };
+    }
+    if (l.type === 'symbol') {
+      l.paint = { ...(l.paint || {}), 'text-color': /label_city|label_town/.test(l.id) ? '#3c3c43' : '#8e8e93', 'text-halo-color': 'rgba(255,255,255,0.9)', 'text-halo-width': 1.4 };
+    }
+  }
+  return style;
+}
+
+// ---- State: one object, one render ----
+
+const state = { step: 'where', active: 'pickup', query: '', pickup: null, drop: null, type: 'SHARED', seats: 1, womenOnly: false, rideStep: 0 };
+const body = document.getElementById('body');
+const sheet = document.getElementById('sheet');
+let map, markers = {}, timers = [], teslaAnim = null;
+
+function later(ms, fn) { const t = setTimeout(fn, REDUCED ? Math.min(ms, 400) : ms); timers.push(t); }
+function clearTimers() { timers.forEach(clearTimeout); timers = []; if (teslaAnim) cancelAnimationFrame(teslaAnim); }
+
+function fareFor() {
+  const km = state.drop.km;
+  if (state.type === 'PRIVATE') return { price: solo(km) * 3, note: 'The whole Tesla, just you. Picked up at the same stand.' };
+  return { price: pooled(km) * state.seats, note: `${taka(solo(km) * state.seats)} if nobody else joins. Cash to the driver.` };
+}
+
+function render() {
+  const s = state;
+  let html = '';
+  if (s.step === 'where' || s.step === 'options') {
+    html += `<h1>Where to?</h1>
+      <div class="fields">
+        <div class="rail"><span class="dot"></span><span class="line"></span><span class="square"></span></div>
+        <div class="inputs">
+        <input id="f-pickup" class="${s.active === 'pickup' && s.step === 'where' ? 'active' : ''}" placeholder="Pickup" autocomplete="off" value="${s.pickup ? s.pickup.name : s.active === 'pickup' ? s.query : ''}" />
+        <div class="sep"></div>
+        <input id="f-drop" class="${s.active === 'drop' && s.step === 'where' ? 'active' : ''}" placeholder="Where to?" autocomplete="off" value="${s.drop ? s.drop.name : s.active === 'drop' ? s.query : ''}" />
+        </div>
+      </div>`;
+  }
+  if (s.step === 'where') {
+    const list = (s.active === 'pickup' ? PICKUPS : DROPS).filter((p) => p.name.toLowerCase().includes(s.query.toLowerCase()));
+    html += `<p class="group-header">${s.active === 'pickup' ? 'Near you' : 'Suggestions'}</p><div class="group enter">`;
+    html += list.map((p, i) => `<button class="row" data-pick="${i}"><span class="grow">${p.name}<span class="detail">${p.kind}</span></span></button>`).join('') || `<div class="row muted">No places match that. Try a road name.</div>`;
+    html += `</div><p class="group-footer" style="margin-top:-12px">Or tap the map to drop a pin.</p>`;
+  }
+  if (s.step === 'options') {
+    const w = walkMinutes(s.pickup, STAND);
+    const onStand = s.pickup.name === STAND.name;
+    const f = fareFor();
+    html += `<div class="group enter"><div class="row"><span class="grow">${onStand ? `Board at ${STAND.name}` : `Walk ${w.minutes} min to ${STAND.name}`}<span class="detail">${onStand ? 'Tesla stand, Banani' : `${w.meters} m from ${s.pickup.name}`}</span></span></div></div>
+      <div class="segmented" role="radiogroup">
+        <button role="radio" data-type="SHARED" aria-checked="${s.type === 'SHARED'}">Shared</button>
+        <button role="radio" data-type="PRIVATE" aria-checked="${s.type === 'PRIVATE'}">Private</button>
+      </div>`;
+    if (s.type === 'SHARED') {
+      html += `<div class="group"><div class="row"><span class="grow">Seats</span>
+          <span class="segmented" style="margin:0;width:150px">${[1, 2, 3].map((n) => `<button data-seats="${n}" aria-checked="${s.seats === n}">${n}</button>`).join('')}</span></div>
+        <div class="row"><span class="grow">Women-only ride</span><button class="switch" role="switch" data-women aria-checked="${s.womenOnly}" aria-label="Women-only ride"></button></div></div>`;
+    }
+    html += `<div class="group"><div class="row"><span class="grow">${s.type === 'PRIVATE' ? 'Private ride' : 'Shared ride'}<span class="detail">${f.note}</span></span><span class="fare">${taka(f.price)}</span></div></div>
+      <p class="group-footer">1 Tesla is online in Banani.</p>
+      <button class="primary" data-request>${s.type === 'PRIVATE' ? 'Request a private ride' : 'Request a ride'}</button>`;
+  }
+  if (s.step === 'ride') {
+    const steps = ['Requested', 'Matched', 'At the stand', 'On the way', 'Dropped off'];
+    const notes = [
+      `Looking for a Tesla near ${STAND.name}.`,
+      'Jashim is heading to the stand.',
+      `Your Tesla is at ${STAND.name}. Go there now.`,
+      `Heading to ${s.drop.zone}. Pay in cash when you get off.`,
+      '',
+    ];
+    const titles = ['Looking for a Tesla', 'A Tesla is on the way', 'Your Tesla is at the stand', 'On your way', 'Trip complete'];
+    const f = fareFor();
+    html += `<h1>${titles[s.rideStep]}</h1>`;
+    if (s.rideStep < 4) {
+      html += `<div class="group enter"><ol class="stepper">${steps.map((label, i) => {
+        const cls = i < s.rideStep ? 'done' : i === s.rideStep ? 'here' : 'todo';
+        return `<li class="${cls}"><div class="col"><span class="node"></span>${i < steps.length - 1 ? '<span class="bar"></span>' : ''}</div><div class="text"><div class="label">${label}</div>${i === s.rideStep ? `<div class="note">${notes[i]}</div>` : ''}</div></li>`;
+      }).join('')}</ol></div>`;
+    }
+    if (s.rideStep >= 1) {
+      html += `<p class="group-header">Your Tesla</p><div class="group"><div class="row"><span class="grow">Jashim Uddin<span class="detail">Bullet, DHAKA-METRO-GA-11-1111</span></span><span class="muted">${s.rideStep === 4 ? '' : s.rideStep === 1 ? '3 min' : s.rideStep === 2 ? 'Here' : ''}</span></div></div>`;
+    }
+    if (s.rideStep >= 1 && s.rideStep < 4 && s.type === 'SHARED') {
+      html += `<p class="group-header">Also on this ride</p><div class="group"><div class="row"><span class="grow">Rafiq</span><span class="muted">Drops at Gulshan 1</span></div></div><p class="group-footer">You see first names only.</p>`;
+    }
+    html += `<div class="group"><div class="row"><span class="grow ${s.rideStep === 4 ? 'strong' : ''}">${s.rideStep === 4 ? 'Total, paid in cash' : s.rideStep >= 3 ? 'Fare' : 'Fare, at most'}</span><span class="fare">${taka(f.price)}</span></div></div>`;
+    if (s.rideStep === 0) html += `<div class="group"><button class="row" data-cancel><span class="grow text-red">Cancel request</span></button></div>`;
+    if (s.rideStep === 4) html += `<button class="primary" data-again>Book another ride</button>`;
+  }
+  body.innerHTML = html;
+  bind();
+}
+
+// ---- Wiring the sheet ----
+
+function bind() {
+  const fp = document.getElementById('f-pickup'), fd = document.getElementById('f-drop');
+  const focusField = (which) => () => { if (state.step !== 'where' || state.active !== which) { state.step = 'where'; state.active = which; state.query = ''; if (which === 'pickup') { state.pickup = null; } state.drop = which === 'drop' ? null : state.drop; clearRoute(); render(); snap('full'); document.getElementById(which === 'pickup' ? 'f-pickup' : 'f-drop').focus(); } };
+  if (fp) { fp.addEventListener('focus', focusField('pickup')); fp.addEventListener('input', (e) => { state.query = e.target.value; renderKeepFocus('f-pickup'); }); }
+  if (fd) { fd.addEventListener('focus', focusField('drop')); fd.addEventListener('input', (e) => { state.query = e.target.value; renderKeepFocus('f-drop'); }); }
+  body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+    const list = (state.active === 'pickup' ? PICKUPS : DROPS).filter((p) => p.name.toLowerCase().includes(state.query.toLowerCase()));
+    choose(list[Number(b.dataset.pick)]);
+  }));
+  body.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => { state.type = b.dataset.type; if (state.type === 'PRIVATE') state.womenOnly = false; render(); }));
+  body.querySelectorAll('[data-seats]').forEach((b) => b.addEventListener('click', () => { state.seats = Number(b.dataset.seats); render(); }));
+  body.querySelector('[data-women]')?.addEventListener('click', () => { state.womenOnly = !state.womenOnly; render(); });
+  body.querySelector('[data-request]')?.addEventListener('click', request);
+  body.querySelector('[data-cancel]')?.addEventListener('click', reset);
+  body.querySelector('[data-again]')?.addEventListener('click', reset);
+}
+
+function renderKeepFocus(id) {
+  const el = document.getElementById(id), pos = el.selectionStart;
+  render();
+  const again = document.getElementById(id);
+  again.focus(); again.setSelectionRange(pos, pos);
+}
+
+function choose(place) {
+  if (state.active === 'pickup') {
+    state.pickup = place; state.active = 'drop'; state.query = '';
+    showPickup();
+    render(); snap('half');
+  } else {
+    state.drop = place; state.query = '';
+    state.step = 'options';
+    showRoute();
+    render(); snap('half');
+  }
+}
+
+// ---- The map: pins, the pulsing stand, the walk, the route drawing itself, the Tesla ----
+
+function el(cls, inner = '') { const d = document.createElement('div'); d.className = cls; d.innerHTML = inner; return d; }
+function put(key, element, lngLat) {
+  markers[key]?.remove();
+  const wrap = document.createElement('div');
+  element.classList.add('drop-in');
+  wrap.appendChild(element);
+  markers[key] = new maplibregl.Marker({ element: wrap }).setLngLat([lngLat.lng, lngLat.lat]).addTo(map);
+  return element;
+}
+function removeMarker(key) { markers[key]?.remove(); delete markers[key]; }
+function setLine(id, coords) { map.getSource(id).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }); }
+
+function sheetPadding() {
+  if (innerWidth >= 768) return { top: 0, bottom: 0, left: 380 + 32, right: 0 };
+  return { top: 0, bottom: sheetVisible(), left: 0, right: 0 };
+}
+const MARGIN = { top: 80, bottom: 50, left: 50, right: 50 };
+function syncPadding(animate) { if (map) map.easeTo({ padding: sheetPadding(), duration: animate && !REDUCED ? 450 : 0 }); }
+
+function showPickup() {
+  removeMarker('drop'); removeMarker('tesla'); setLine('route', []);
+  if (state.pickup.name !== STAND.name) {
+    put('pin', el('m-pin'), state.pickup);
+    setLine('walk', [[state.pickup.lng, state.pickup.lat], [STAND.lng, STAND.lat]]);
+  } else { removeMarker('pin'); setLine('walk', []); }
+  put('stand', el('m-stand', '<span class="ring"></span><span class="ring r2"></span><span class="core"></span>'), STAND);
+  map.flyTo({ center: [STAND.lng, STAND.lat], zoom: 15.5, duration: REDUCED ? 0 : 1400, essential: true });
+}
+
+function showRoute() {
+  const path = arc(STAND, state.drop);
+  const bounds = path.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(path[0], path[0]));
+  if (state.pickup.name !== STAND.name) bounds.extend([state.pickup.lng, state.pickup.lat]);
+  map.fitBounds(bounds, { padding: MARGIN, duration: REDUCED ? 0 : 1200, maxZoom: 15.5 });
+  drawProgressively('route', path, REDUCED ? 0 : 900, () => put('drop', el('m-drop'), state.drop));
+}
+
+function drawProgressively(id, path, ms, done) {
+  if (ms === 0) { setLine(id, path); done?.(); return; }
+  const start = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / ms);
+    const eased = 1 - Math.pow(1 - t, 3);
+    setLine(id, path.slice(0, Math.max(2, Math.round(eased * path.length))));
+    if (t < 1) requestAnimationFrame(tick); else done?.();
+  };
+  requestAnimationFrame(tick);
+}
+
+function clearRoute() {
+  if (!map || !map.getSource('route')) return;
+  setLine('route', []); removeMarker('drop'); removeMarker('tesla');
+  if (!state.pickup) { setLine('walk', []); removeMarker('pin'); removeMarker('stand'); }
+}
+
+const TESLA_SVG = '<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M8 1 14.5 16.5 8 13 1.5 16.5Z" fill="#000"/></svg>';
+
+function driveTesla(path, ms, follow, done) {
+  const node = markers.tesla ? markers.tesla.getElement().firstChild : put('tesla', el('m-tesla', TESLA_SVG), { lng: path[0][0], lat: path[0][1] });
+  const arrow = node.querySelector('svg');
+  if (REDUCED) { markers.tesla.setLngLat(path[path.length - 1]); done?.(); return; }
+  const start = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / ms);
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const f = eased * (path.length - 1), i = Math.min(path.length - 2, Math.floor(f)), k = f - i;
+    const p = [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k];
+    markers.tesla.setLngLat(p);
+    arrow.style.transform = `rotate(${bearing(path[i], path[i + 1])}deg)`;
+    if (follow) map.easeTo({ center: p, duration: 0 });
+    if (t < 1) teslaAnim = requestAnimationFrame(tick); else done?.();
+  };
+  teslaAnim = requestAnimationFrame(tick);
+}
+
+// ---- The simulated trip: every step here would be a live update in the real app ----
+
+function request() {
+  state.step = 'ride'; state.rideStep = 0;
+  markers.stand.getElement().firstChild.classList.add('searching');
+  render(); snap('half');
+  map.easeTo({ center: [STAND.lng, STAND.lat], zoom: 15, duration: REDUCED ? 0 : 900 });
+  later(3500, () => {
+    markers.stand.getElement().firstChild.classList.remove('searching');
+    state.rideStep = 1; render();
+    const approach = arc(TESLA_START, STAND, -0.18);
+    const b = new maplibregl.LngLatBounds([STAND.lng, STAND.lat], [TESLA_START.lng, TESLA_START.lat]);
+    if (state.pickup.name !== STAND.name) b.extend([state.pickup.lng, state.pickup.lat]);
+    map.fitBounds(b, { padding: MARGIN, duration: REDUCED ? 0 : 900, maxZoom: 15.5 });
+    driveTesla(approach, 6000, false, () => {
+      state.rideStep = 2; render();
+      later(2500, () => {
+        state.rideStep = 3; render();
+        setLine('walk', []); removeMarker('pin');
+        map.easeTo({ zoom: 15.5, duration: REDUCED ? 0 : 800 });
+        driveTesla(arc(STAND, state.drop), 8000, true, () => {
+          state.rideStep = 4; render(); snap('half');
+          removeMarker('stand');
+          const trip = arc(STAND, state.drop);
+          map.fitBounds(trip.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(trip[0], trip[0])), { padding: MARGIN, duration: REDUCED ? 0 : 1200, maxZoom: 15.5 });
+        });
+      });
+    });
+  });
+}
+
+function reset() {
+  clearTimers();
+  Object.keys(markers).forEach(removeMarker);
+  if (map.getSource('route')) { setLine('route', []); setLine('walk', []); }
+  Object.assign(state, { step: 'where', active: 'pickup', query: '', pickup: null, drop: null, type: 'SHARED', seats: 1, womenOnly: false, rideStep: 0 });
+  render(); snap('half');
+  map.flyTo({ center: [90.4066, 23.7885], zoom: 13.6, duration: REDUCED ? 0 : 1200 });
+}
+
+// ---- A pin dropped on the map snaps to the nearest suggestion, like the real app snaps to a stand ----
+
+function nearestTo(list, lngLat) {
+  return list.reduce((best, p) => {
+    const d = (p.lng - lngLat.lng) ** 2 + (p.lat - lngLat.lat) ** 2;
+    return !best || d < best.d ? { p, d } : best;
+  }, null).p;
+}
+
+// ---- The draggable sheet (phones only) ----
+
+const SNAPS = { peek: 0.28, half: 0.5, full: 0.92 };
+let current = 'half';
+function sheetVisible() { return innerHeight * SNAPS[current]; }
+function snap(name) {
+  if (innerWidth >= 768) return;
+  current = name;
+  sheet.style.setProperty('--visible', `${SNAPS[name] * 100}dvh`);
+  document.documentElement.style.setProperty('--attrib-offset', `${SNAPS[name] * innerHeight}px`);
+  syncPadding(true);
+}
+(function drag() {
+  let startY = 0, startVisible = 0, dragging = false;
+  const down = (e) => { if (innerWidth >= 768) return; dragging = true; startY = e.clientY; startVisible = sheetVisible(); sheet.classList.add('dragging'); sheet.setPointerCapture(e.pointerId); };
+  const move = (e) => { if (!dragging) return; const v = Math.min(innerHeight * 0.92, Math.max(innerHeight * 0.2, startVisible + (startY - e.clientY))); sheet.style.setProperty('--visible', `${v}px`); };
+  const up = (e) => {
+    if (!dragging) return; dragging = false; sheet.classList.remove('dragging');
+    const v = startVisible + (startY - e.clientY);
+    const name = Object.entries(SNAPS).reduce((b, [k, f]) => (Math.abs(f * innerHeight - v) < Math.abs(SNAPS[b] * innerHeight - v) ? k : b), 'half');
+    snap(name);
+  };
+  document.getElementById('grabber').addEventListener('pointerdown', down);
+  sheet.addEventListener('pointermove', move);
+  sheet.addEventListener('pointerup', up);
+})();
+
+// ---- Start ----
+
+(async function start() {
+  snap('half');
+  render();
+  map = new maplibregl.Map({
+    container: 'map',
+    style: await loadStyle(),
+    center: [90.4066, 23.7885],
+    zoom: 13.6,
+    attributionControl: { compact: true },
+    pitchWithRotate: false,
+    dragRotate: false,
+  });
+  map.touchZoomRotate.disableRotation();
+  map.on('load', () => {
+    map.addSource('walk', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
+    map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
+    map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0a84ff', 'line-width': 4, 'line-dasharray': [0, 2] } });
+    map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
+    map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#000000', 'line-width': 5 } });
+    map.setPadding(sheetPadding());
+  });
+  map.on('click', (e) => {
+    if (state.step !== 'where') return;
+    choose(nearestTo(state.active === 'pickup' ? PICKUPS : DROPS, e.lngLat));
+  });
+})();
+</script>
+</body>
+</html>

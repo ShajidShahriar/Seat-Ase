@@ -15,7 +15,11 @@ async function main() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
-    logger.error('migration failed', { error: err.message });
+    logger.error('migration failed', {
+      error: err.message,
+      cause: err.cause?.message,
+      code: err.cause?.code,
+    });
     process.exit(1);
   });
 }

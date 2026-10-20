@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f2f2f7" />
+<title>Seat Ase? Screen States</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  /* ---- Tokens: the same Apple greys, Uber black and one blue as the app ---- */
+  :root {
+    --label: #000;
+    --label-2: rgb(60 60 67 / 0.6);
+    --label-3: rgb(60 60 67 / 0.3);
+    --separator: rgb(60 60 67 / 0.18);
+    --fill: rgb(120 120 128 / 0.12);
+    --grouped: #f2f2f7;
+    --cell: #fff;
+    --primary: #000;
+    --blue: #0a84ff;
+    --blue-text: #0040dd;
+    --green: #248a3d;
+    --green-fill: #34c759;
+    --red: #d70015;
+    --sheet-radius: 20px;
+    --cell-radius: 12px;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--grouped); }
+  body { font: 17px/22px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif; color: var(--label); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  #map { position: fixed; inset: 0; }
+
+  /* ---- The sheet: a bottom sheet on phones, a floating panel on wide screens ---- */
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 94dvh; background: var(--grouped);
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+    box-shadow: 0 -1px 0 var(--separator), 0 -8px 30px rgb(0 0 0 / 0.08);
+    transform: translateY(calc(94dvh - var(--visible, 50dvh)));
+    transition: transform 0.45s var(--ease);
+    display: flex; flex-direction: column; touch-action: none;
+  }
+  .sheet.dragging { transition: none; }
+  .grabber { padding: 8px 0 4px; display: grid; place-items: center; cursor: grab; flex: none; }
+  .grabber span { width: 36px; height: 5px; border-radius: 3px; background: var(--label-3); }
+  .sheet-body { overflow-y: auto; padding: 4px 16px calc(24px + env(safe-area-inset-bottom)); touch-action: pan-y; flex: 1; }
+  @media (min-width: 768px) {
+    .sheet { left: 16px; top: 72px; bottom: 16px; right: auto; width: 380px; height: auto; transform: none; border-radius: var(--sheet-radius); box-shadow: 0 10px 40px rgb(0 0 0 / 0.12); }
+    .grabber { display: none; }
+    .sheet-body { padding-top: 20px; }
+  }
+
+  /* ---- Type and grouped lists ---- */
+  h1 { font-size: 28px; line-height: 34px; font-weight: 700; margin: 4px 4px 14px; letter-spacing: -0.4px; }
+  .sub { font-size: 15px; line-height: 20px; color: var(--label-2); margin: -8px 4px 18px; }
+  .group { background: var(--cell); border-radius: var(--cell-radius); overflow: hidden; margin-bottom: 20px; }
+  .group-header { font-size: 13px; color: var(--label-2); text-transform: uppercase; margin: 0 16px 6px; }
+  .group-footer { font-size: 13px; line-height: 18px; color: var(--label-2); margin: -14px 16px 20px; }
+  .row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 16px; width: 100%; text-align: left; position: relative; }
+  .row + .row::before, .row + .card::before, .card + .card::before, .card + .row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--separator); }
+  button.row:active:not(:disabled) { background: var(--fill); }
+  .row .grow { flex: 1; min-width: 0; }
+  .detail { font-size: 13px; line-height: 18px; color: var(--label-2); display: block; }
+  .muted { color: var(--label-2); }
+  .strong { font-weight: 600; }
+  .blue { color: var(--blue-text); }
+  .red { color: var(--red); }
+  .green { color: var(--green); }
+  .center { text-align: center; }
+  .error { color: var(--red); font-size: 13px; line-height: 18px; margin: -12px 16px 20px; }
+  .empty { padding: 28px 16px; text-align: center; }
+  .empty .title { font-weight: 600; }
+
+  /* ---- Form fields inside a group ---- */
+  .field { display: flex; align-items: center; min-height: 44px; padding: 0 16px; gap: 12px; position: relative; }
+  .field + .field::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--separator); }
+  .field span { width: 92px; flex: none; }
+  .field input { flex: 1; min-width: 0; border: 0; outline: 0; font: inherit; height: 44px; background: transparent; }
+  .field input::placeholder { color: var(--label-3); }
+  .code { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 6px; }
+
+  /* ---- The two place fields with the dot and square, like Uber ---- */
+  .fields { display: grid; grid-template-columns: 28px 1fr; background: var(--cell); border-radius: var(--cell-radius); margin-bottom: 20px; }
+  .fields .rail { display: flex; flex-direction: column; align-items: center; padding: 20px 0 20px 12px; }
+  .rail .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+  .rail .line { width: 2px; flex: 1; background: var(--label-3); margin: 4px 0; border-radius: 1px; }
+  .rail .square { width: 8px; height: 8px; background: var(--primary); }
+  .fields .inputs { display: flex; flex-direction: column; justify-content: center; padding: 4px 8px 4px 0; }
+  .fields .sep { height: 1px; background: var(--separator); margin-left: 8px; }
+  .fields .value { height: 44px; display: flex; align-items: center; padding: 0 16px 0 8px; border-radius: 8px; }
+  .fields .value.active { background: var(--fill); }
+  .fields .value.placeholder { color: var(--label-3); }
+
+  /* ---- Controls ---- */
+  .segmented { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; margin-bottom: 20px; }
+  .segmented button { flex: 1; height: 32px; border-radius: 7px; font-size: 15px; font-weight: 500; }
+  .segmented button[aria-checked='true'] { background: var(--cell); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+  .switch { width: 51px; height: 31px; border-radius: 16px; background: var(--fill); position: relative; flex: none; transition: background 0.2s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.25); transition: transform 0.25s var(--ease); }
+  .switch[aria-checked='true'] { background: var(--green-fill); }
+  .switch[aria-checked='true']::after { transform: translateX(20px); }
+  .primary { width: 100%; height: 50px; border-radius: 12px; background: var(--primary); color: #fff; font-weight: 600; margin-bottom: 20px; }
+  .primary:active:not(:disabled) { opacity: 0.8; }
+  .pill { height: 32px; padding: 0 16px; border-radius: 16px; background: var(--fill); font-size: 15px; font-weight: 600; color: var(--blue-text); flex: none; }
+  .pill.red { color: var(--red); }
+  .pill:active { opacity: 0.6; }
+  .fare { font-size: 22px; line-height: 28px; font-weight: 700; }
+  .check { flex: none; }
+
+  /* ---- Stepper ---- */
+  .stepper { list-style: none; margin: 0; padding: 16px; }
+  .stepper li { display: flex; gap: 12px; }
+  .stepper .col { display: flex; flex-direction: column; align-items: center; }
+  .stepper .node { width: 12px; height: 12px; border-radius: 50%; background: var(--fill); margin-top: 5px; flex: none; }
+  .stepper .done .node { background: var(--primary); }
+  .stepper .here .node { background: #fff; box-shadow: inset 0 0 0 3px var(--primary); }
+  .stepper .bar { width: 2px; flex: 1; min-height: 14px; margin: 4px 0; background: var(--fill); }
+  .stepper .done .bar { background: var(--primary); }
+  .stepper .text { padding-bottom: 14px; }
+  .stepper li:last-child .text { padding-bottom: 0; }
+  .stepper .todo .label { color: var(--label-3); }
+  .stepper .here .label { font-weight: 600; }
+  .stepper .note { font-size: 15px; line-height: 20px; color: var(--label-2); margin-top: 2px; }
+
+  /* ---- Driver request cards ---- */
+  .card { padding: 12px 16px; position: relative; }
+  .card .top { display: flex; align-items: baseline; gap: 12px; }
+  .card .top .grow { font-weight: 600; flex: 1; }
+  .card .seats { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; }
+  .card .seats svg { display: block; }
+  .card .actions { margin-top: 12px; }
+  .card .actions .primary { height: 44px; margin: 0; }
+  .card .nofit { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--separator); font-size: 13px; line-height: 18px; }
+  .card.dim .top, .card.dim .seats { opacity: 0.55; }
+  .seat-row { display: inline-flex; gap: 2px; }
+
+  /* ---- Sheet content changes: a short rise ---- */
+  .enter { animation: rise 0.35s var(--ease) both; }
+  @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ---- Map markers, drawn by hand ---- */
+  .m-pin { width: 16px; height: 16px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); }
+  .m-drop { width: 16px; height: 16px; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); }
+  .m-drop.numbered { width: 22px; height: 22px; color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; border-radius: 4px; }
+  .m-drop.done { background: #8e8e93; }
+  .m-stand { position: relative; width: 18px; height: 18px; }
+  .m-stand .core { position: absolute; inset: 0; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); z-index: 2; }
+  .m-stand .ring { position: absolute; inset: -14px; border-radius: 50%; background: rgb(10 132 255 / 0.22); animation: pulse 2.2s ease-out infinite; }
+  .m-stand .ring.r2 { animation-delay: 1.1s; }
+  .m-stand.search .ring { inset: -70px; background: rgb(10 132 255 / 0.14); animation-duration: 2.6s; }
+  .m-stand.search .ring.r2 { animation-delay: 1.3s; }
+  .m-stand.quiet .ring { display: none; }
+  @keyframes pulse { from { transform: scale(0.2); opacity: 1; } to { transform: scale(1); opacity: 0; } }
+  .m-badge { position: absolute; left: 50%; top: -38px; transform: translateX(-50%); white-space: nowrap; background: #fff; border-radius: 10px; padding: 4px 10px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 10px rgb(0 0 0 / 0.15); z-index: 3; }
+  .m-badge::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: #fff; transform: translateX(-50%) rotate(45deg); }
+  .m-tesla { width: 34px; height: 34px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgb(0 0 0 / 0.25); display: grid; place-items: center; }
+  .drop-in { animation: dropin 0.5s var(--ease) both; }
+  @keyframes dropin { from { transform: translateY(-24px) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ---- Floating chrome: the state switcher and who is logged in ---- */
+  .switcher { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 12px; z-index: 30; display: flex; align-items: center; gap: 4px; background: #fff; border-radius: 22px; padding: 4px; box-shadow: 0 2px 12px rgb(0 0 0 / 0.14); max-width: calc(100vw - 24px); }
+  .switcher .nav { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; flex: none; }
+  .switcher .nav:active { background: var(--fill); }
+  .switcher .current { height: 36px; padding: 0 10px; border-radius: 18px; font-size: 15px; font-weight: 600; min-width: 0; display: flex; gap: 6px; align-items: center; }
+  .switcher .current .who { color: var(--label-2); font-weight: 500; }
+  .switcher .current .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+  .switcher .current:active { background: var(--fill); }
+  .me { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 20; background: #fff; border-radius: 12px; padding: 5px 12px; text-align: right; box-shadow: 0 2px 12px rgb(0 0 0 / 0.14); }
+  .me .n { font-size: 15px; font-weight: 600; line-height: 20px; }
+  .me .r { font-size: 12px; line-height: 16px; color: var(--label-2); }
+  @media (max-width: 767px) { .me { top: calc(60px + env(safe-area-inset-top)); } }
+  .menu { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.25); display: none; }
+  .menu.open { display: block; }
+  .menu .panel { position: absolute; top: calc(60px + env(safe-area-inset-top)); left: 12px; width: min(360px, calc(100vw - 24px)); max-height: calc(100dvh - 80px); overflow-y: auto; background: var(--grouped); border-radius: 16px; padding: 16px 12px 4px; box-shadow: 0 12px 40px rgb(0 0 0 / 0.2); }
+
+  .maplibregl-ctrl-attrib { font-size: 11px; background: rgb(255 255 255 / 0.8) !important; }
+  .maplibregl-ctrl-bottom-right { bottom: var(--attrib-offset, 0px); transition: bottom 0.45s var(--ease); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring { display: none; }
+    .enter, .drop-in { animation: none; }
+    .sheet { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Map of Dhaka"></div>
+
+<div class="switcher" role="toolbar" aria-label="Screen states">
+  <button class="nav" id="prev" aria-label="Previous state"><svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><path d="M8 2 2 8l6 6" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <button class="current" id="current"><span class="who" id="cur-who"></span><span class="label" id="cur-label"></span></button>
+  <button class="nav" id="next" aria-label="Next state"><svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><path d="m2 2 6 6-6 6" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+</div>
+<div class="me" id="me" hidden><div class="n" id="me-name"></div><div class="r" id="me-role"></div></div>
+<div class="menu" id="menu"><div class="panel" id="menu-panel"></div></div>
+
+<section class="sheet" id="sheet" aria-label="Screen">
+  <div class="grabber" id="grabber"><span></span></div>
+  <div class="sheet-body" id="body"></div>
+</section>
+
+<script>
+// ---- Real data from the app's seed and the fixed story fares ----
+
+const STAND = { name: 'Banani Road 11 police box', lng: 90.4076, lat: 23.7937 };
+const PICKUP = { name: 'Banani Rail Crossing', lng: 90.4046, lat: 23.7967 };
+const MOHAKHALI = { name: 'Mohakhali bus stand', zone: 'Mohakhali', lng: 90.4063, lat: 23.7805 };
+const GULSHAN1 = { name: 'Gulshan 1 DCC Market stand', zone: 'Gulshan 1', lng: 90.4152, lat: 23.7818 };
+const TESLA_START = { lng: 90.4151, lat: 23.7945 };
+const NEAR_STAND = [STAND.lng + 0.001, STAND.lat - 0.0015];
+const AT_STAND = [STAND.lng + 0.0003, STAND.lat + 0.0002];
+const ZONES = ['Banani', 'Gulshan 1', 'Gulshan 2', 'Mohakhali', 'Tejgaon', 'Farmgate', 'Dhanmondi', 'Mirpur', 'Uttara', 'Bashundhara', 'Badda', 'Motijheel'];
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HOME = { center: [90.4066, 23.7885], zoom: 13.6 };
+
+// ---- Hand-drawn icons, the same ones the app uses ----
+
+const CHECK = '<svg class="check" width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><path d="M1.5 6.5 5 10 12.5 1.5" fill="none" stroke="#0040dd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHEVRON = '<svg width="8" height="13" viewBox="0 0 8 13" aria-hidden="true"><path d="M1.5 1.5 6.5 6.5 1.5 11.5" fill="none" stroke="rgb(60 60 67 / 0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ARROW = '<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M8 1 14.5 16.5 8 13 1.5 16.5Z" fill="#000"/></svg>';
+const seat = (filled = true) => `<svg width="14" height="16" viewBox="0 0 16 18" aria-hidden="true"><rect x="3.5" y="1" width="9" height="9" rx="3" fill="${filled ? '#000' : 'none'}" stroke="#000" stroke-width="1.5"/><rect x="1.75" y="11.5" width="12.5" height="5" rx="2.5" fill="${filled ? '#000' : 'none'}" stroke="#000" stroke-width="1.5"/></svg>`;
+const seats = (taken, cap = taken) => `<span class="seat-row">${Array.from({ length: cap }, (_, i) => seat(i < taken)).join('')}</span>`;
+
+// ---- Small builders for the sheet ----
+
+const row = (left, right = '', attrs = '') => `<${attrs ? 'button' : 'div'} class="row" ${attrs}><span class="grow">${left}</span>${right}</${attrs ? 'button' : 'div'}>`;
+const two = (title, detail) => `${title}<span class="detail">${detail}</span>`;
+const group = (inner, { header = '', footer = '' } = {}) => `${header ? `<p class="group-header">${header}</p>` : ''}<div class="group">${inner}</div>${footer ? `<p class="group-footer">${footer}</p>` : ''}`;
+const primary = (label, go, disabled = false) => `<button class="primary" data-go="${go}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+const field = (label, value, placeholder = '', type = 'text') => `<label class="field"><span>${label}</span><input type="${type}" value="${value}" placeholder="${placeholder}" /></label>`;
+const cash = (text) => `<strong style="color:#000;font-size:17px;line-height:24px">${text}</strong>`;
+
+function stepper(at, note) {
+  const steps = ['Requested', 'Matched', 'At the stand', 'On the way', 'Dropped off'];
+  return `<div class="group"><ol class="stepper">${steps.map((label, i) => {
+    const cls = i < at ? 'done' : i === at ? 'here' : 'todo';
+    return `<li class="${cls}"><div class="col"><span class="node"></span>${i < steps.length - 1 ? '<span class="bar"></span>' : ''}</div><div class="text"><div class="label">${label}</div>${i === at && note ? `<div class="note">${note}</div>` : ''}</div></li>`;
+  }).join('')}</ol></div>`;
+}
+
+function placeFields(pickup, drop, active) {
+  const v = (text, which, placeholder) => `<div class="value ${active === which ? 'active' : ''} ${text ? '' : 'placeholder'}">${text || placeholder}</div>`;
+  return `<div class="fields"><div class="rail"><span class="dot"></span><span class="line"></span><span class="square"></span></div>
+    <div class="inputs">${v(pickup, 'pickup', 'Pickup')}<div class="sep"></div>${v(drop, 'drop', 'Where to?')}</div></div>`;
+}
+
+const yourTesla = (right = '') => group(row(two('Jashim Uddin', 'Bullet, DHAKA-METRO-GA-11-1111'), right ? `<span class="muted">${right}</span>` : ''), { header: 'Your Tesla' });
+const coRider = () => group(row('Rafiq', '<span class="muted">Drops at Gulshan 1</span>'), { header: 'Also on this ride', footer: 'You see first names only.' });
+const timeline = (items) => group(items.map(([t, when]) => row(t, `<span class="detail">${when}</span>`)).join(''), { header: 'What has happened' });
+const booking = (fareText) => group(row('Route', '<span class="muted">Banani to Mohakhali</span>') + row('Ride', '<span class="muted">Shared, 1 seat</span>') + (fareText ? row('Fare', `<span class="strong">${fareText}</span>`) : ''), { header: 'Your booking', footer: fareText ? 'You pay the driver in cash.' : '' });
+
+function requestCard({ route, stand = STAND.name, wait, seatsCount = 1, detail, fits = true, reasons = [] }) {
+  return `<div class="card ${fits ? '' : 'dim'}">
+    <div class="top"><span class="grow">${route}</span><span class="detail">${wait}</span></div>
+    <span class="detail">${stand}</span>
+    <div class="seats">${seats(seatsCount)}<span>${detail}</span></div>
+    ${fits ? `<div class="actions"><button class="primary" data-go="d-ride-open">Accept</button></div>` : `<div class="nofit"><div class="red strong">Does not fit your ride</div>${reasons.map((r) => `<div class="muted">${r}</div>`).join('')}</div>`}
+  </div>`;
+}
+
+const driverPassenger = (name, n, zone, seatsCount, extra, right = '') => row(two(name, `${n}. Drops at ${zone}, ${seatsCount} ${seatsCount === 1 ? 'seat' : 'seats'}${extra ? `<br>${extra}` : ''}`), right);
+
+// ---- Every screen state, in story order. `data-go` on a button jumps to the state it would lead to ----
+
+const opts = { type: 'SHARED', seats: 1, women: false };
+
+const SCENES = [
+  { id: 'p-login', who: 'Passenger', label: 'Log in', snap: 'full', me: null, map: { camera: 'home' },
+    sheet: () => `<h1>Seat Ase?</h1><p class="sub">Log in to find a seat, or to drive.</p>
+      ${group(field('Phone', '', '01XXXXXXXXX', 'tel') + field('Password', '', 'Your password', 'password'))}
+      ${primary('Log in', 'p-where')}
+      <p class="center muted" style="font-size:15px;margin:-6px 0 22px">New here? <button class="blue" data-go="p-signup">Create an account</button></p>
+      ${group([['Nusrat', 'Passenger, Banani to Mohakhali', 'p-where'], ['Rafiq', 'Passenger, Banani to Gulshan 1', 'p-where'], ['Shirin', 'Passenger, asks for women-only', 'p-where'], ['Jashim', 'Driver, Bullet, 3 seats', 'd-offline'], ['Mokbul', 'Driver, Toofan, 3 seats', 'd-offline']].map(([n, d, g]) => row(two(n, d), CHEVRON, `data-go="${g}"`)).join(''), { header: 'Demo accounts', footer: 'Every demo account uses the password password123.' })}
+      ${group(row(two('Seat race', 'Two accepts, one last seat, run live'), CHEVRON), { header: 'For reviewers' })}` },
+
+  { id: 'p-login-error', who: 'Passenger', label: 'Log in, wrong password', snap: 'full', me: null, map: { camera: 'home' },
+    sheet: () => `<h1>Seat Ase?</h1><p class="sub">Log in to find a seat, or to drive.</p>
+      ${group(field('Phone', '01700000030', '', 'tel') + field('Password', 'wrongpass', '', 'password'))}
+      ${primary('Log in', 'p-where')}<p class="error">Phone or password is incorrect.</p>` },
+
+  { id: 'p-signup', who: 'Passenger', label: 'Create account', snap: 'full', me: null, map: { camera: 'home' },
+    sheet: () => `<h1>Create account</h1><p class="sub">It takes a minute. Your phone and NID keep Seat Ase? safe.</p>
+      <div class="segmented"><button aria-checked="true">I need a ride</button><button aria-checked="false">I drive a Tesla</button></div>
+      ${group(field('Name', 'Tania') + field('Phone', '01700000088', '', 'tel') + field('Password', 'password123', '', 'password'), { header: 'Your details' })}
+      ${group(field('NID', '1234567890'), { header: 'National ID', footer: 'Checked once when you sign up. We never store the full number, only a secure fingerprint and the last 4 digits. One NID, one account.' })}
+      ${group(row('Female', CHECK) + row('Male') + row('Prefer not to say'), { header: 'Gender', footer: "You can't change this later. Only women can ask for a women-only ride, and it's how we keep those rides safe." })}
+      ${primary('Create account', 'p-verify')}<p class="error">This NID is already linked to another account.</p>` },
+
+  { id: 'p-verify', who: 'Passenger', label: 'Verify phone', snap: 'full', me: ['Tania', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<h1>Verify your phone</h1><p class="sub">We sent a 6-digit code to +8801700000088.</p>
+      ${group(row('<span class="code">482913</span>'), { header: 'Demo mode', footer: 'There is no SMS in the demo, so the code is shown here.' })}
+      ${group(field('Code', '48291', '6 digits'))}
+      ${primary('Verify', 'p-where', true)}
+      <p class="center" style="font-size:15px"><button class="blue">Send a new code</button></p>` },
+
+  { id: 'p-where', who: 'Passenger', label: 'Where to?', snap: 'half', me: ['Nusrat', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<h1>Where to?</h1>${placeFields('', '', 'pickup')}
+      ${group(row(two('Banani Road 11 police box', 'Tesla stand, Banani'), '', 'data-go="p-pickup"') + row(two('Banani Rail Crossing', 'Landmark, Banani'), '', 'data-go="p-pickup"') + row(two('Kemal Ataturk Avenue', 'Landmark, Banani'), '', 'data-go="p-pickup"'), { header: 'Near you', footer: 'Or tap the map to drop a pin.' })}` },
+
+  { id: 'p-no-match', who: 'Passenger', label: 'Search, no match', snap: 'half', me: ['Nusrat', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<h1>Where to?</h1>${placeFields('zzzz', '', 'pickup')}
+      ${group('<div class="empty"><div class="title">No places match “zzzz”</div><div class="muted" style="font-size:15px">Try a road name or a landmark.</div></div>')}` },
+
+  { id: 'p-outside', who: 'Passenger', label: 'Pin outside Dhaka', snap: 'half', me: ['Nusrat', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<h1>Where to?</h1>${placeFields('Pin on the map', '', 'pickup')}<p class="error" style="margin-top:-10px">That location is outside our service area.</p>` },
+
+  { id: 'p-pickup', who: 'Passenger', label: 'Pickup chosen', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'pulse', walk: true, camera: ['pin', 'stand'] },
+    sheet: () => `<h1>Where to?</h1>${placeFields(PICKUP.name, '', 'drop')}
+      ${group(row(two('Walk 7 min to Banani Road 11 police box', '452 m from Banani Rail Crossing')), { footer: 'Banani. Your Tesla stops at the stand, not at your door.' })}
+      ${group(row(two('Mohakhali bus stand', 'Tesla stand, Mohakhali'), '', 'data-go="p-options"') + row(two('Gulshan 1 DCC Market stand', 'Tesla stand, Gulshan 1'), '', 'data-go="p-options"') + row(two('Tejgaon Link Road stand', 'Tesla stand, Tejgaon'), '', 'data-go="p-options"'), { header: 'Suggestions' })}` },
+
+  { id: 'p-options', who: 'Passenger', label: 'Ride options', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'pulse', walk: true, route: [STAND, MOHAKHALI], drop: MOHAKHALI, draw: true },
+    sheet: () => {
+      const priv = opts.type === 'PRIVATE';
+      const price = priv ? 'Tk 345' : ['Tk 96.25', 'Tk 192.50', 'Tk 288.75'][opts.seats - 1];
+      const solo = ['Tk 115', 'Tk 230', 'Tk 345'][opts.seats - 1];
+      return `<h1>Where to?</h1>${placeFields(PICKUP.name, MOHAKHALI.name, '')}
+        ${group(row(two('Walk 7 min to Banani Road 11 police box', '452 m from Banani Rail Crossing')))}
+        <div class="segmented"><button data-opt="type:SHARED" aria-checked="${!priv}">Shared</button><button data-opt="type:PRIVATE" aria-checked="${priv}">Private</button></div>
+        ${priv ? '' : group(`<div class="row"><span class="grow">Seats</span><span class="segmented" style="margin:0;width:150px">${[1, 2, 3].map((n) => `<button data-opt="seats:${n}" aria-checked="${opts.seats === n}">${n}</button>`).join('')}</span></div>${row('Women-only ride', `<button class="switch" data-opt="women" aria-checked="${opts.women}" aria-label="Women-only ride"></button>`)}`, { footer: 'A women-only ride is shared only with other women.' })}
+        ${group(row(two(priv ? 'Private ride' : opts.seats === 1 ? 'Shared ride' : `Shared ride, ${opts.seats} seats`, priv ? 'The whole Tesla, just you. Picked up at the same stand.' : `${solo} if nobody else joins. You pay cash to the driver.`), `<span class="fare">${price}</span>`), { footer: '1 Tesla is online in Banani.' })}
+        ${primary(priv ? 'Request a private ride' : 'Request a ride', 'p-looking')}`;
+    } },
+
+  { id: 'p-already-booked', who: 'Passenger', label: 'Second booking refused', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'pulse', walk: true, route: [STAND, MOHAKHALI], drop: MOHAKHALI },
+    sheet: () => `<h1>Where to?</h1>${placeFields(PICKUP.name, MOHAKHALI.name, '')}
+      ${group(row(two('Shared ride', 'Tk 115 if nobody else joins. You pay cash to the driver.'), '<span class="fare">Tk 96.25</span>'))}
+      ${primary('Request a ride', 'p-looking')}<p class="error">You already have an active booking.</p>` },
+
+  { id: 'p-looking', who: 'Passenger', label: 'Looking for a Tesla', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'search', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], camera: ['stand'], zoom: 15 },
+    sheet: () => `<h1>Looking for a Tesla</h1>${stepper(0, 'Drivers in Banani can see your request.')}${booking()}
+      ${timeline([['You asked for a ride', '27 Sept, 9:14 am']])}
+      ${group(row('<span class="red">Cancel request</span>', '', 'data-go="p-where"'), { footer: 'It expires after 15 minutes if no Tesla takes it.' })}` },
+
+  { id: 'p-matched', who: 'Passenger', label: 'Tesla on the way', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'pulse', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], approach: [TESLA_START, STAND, -0.18], tesla: { drive: [TESLA_START, STAND, -0.18], ms: 7000 }, camera: ['pin', 'stand', 'tesla'] },
+    sheet: () => `<h1>A Tesla is on the way</h1>${stepper(1, 'Jashim is heading to Banani Road 11 police box.')}${booking('Up to Tk 96.25')}
+      ${yourTesla('3 min')}${coRider()}
+      ${group(row('<span class="red">Cancel my ride</span>', '', 'data-go="p-cancel-confirm"'))}` },
+
+  { id: 'p-cancel-confirm', who: 'Passenger', label: 'Cancel, tap again', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'pulse', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], tesla: { at: [90.4121, 23.7948], heading: 250 }, camera: ['pin', 'stand', 'tesla'] },
+    sheet: () => `<h1>A Tesla is on the way</h1>${stepper(1, 'Jashim is heading to Banani Road 11 police box.')}${yourTesla('2 min')}
+      ${group(row('<span class="red strong">Tap again to cancel your ride</span>', '', 'data-go="p-where"'), { footer: 'Your seat is given up and the driver is told.' })}` },
+
+  { id: 'p-arrived', who: 'Passenger', label: 'Tesla at the stand', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'quiet', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], tesla: { at: AT_STAND, heading: 200 }, camera: ['pin', 'stand'] },
+    sheet: () => `<h1>Your Tesla is at the stand</h1>${stepper(2, 'Your Tesla is at Banani Road 11 police box. Go there now.')}
+      ${yourTesla('Here')}${coRider()}${group(row('Fare', '<span class="strong">Up to Tk 96.25</span>'))}
+      ${group(row('<span class="red">Cancel my ride</span>', '', 'data-go="p-cancel-blocked"'))}` },
+
+  { id: 'p-cancel-blocked', who: 'Passenger', label: 'Cancel refused at the stand', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'quiet', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], tesla: { at: AT_STAND, heading: 200 }, camera: ['pin', 'stand'] },
+    sheet: () => `<h1>Your Tesla is at the stand</h1>${stepper(2, 'Your Tesla is at Banani Road 11 police box. Go there now.')}
+      ${group(row('<span class="red">Cancel my ride</span>'))}<p class="error">You can cancel once 15 minutes have passed since the driver arrived without starting.</p>` },
+
+  { id: 'p-boarded', who: 'Passenger', label: 'On board, waiting to start', snap: 'half', me: ['Nusrat', 'Passenger'], map: { stand: 'quiet', drop: MOHAKHALI, route: [STAND, MOHAKHALI], tesla: { at: [STAND.lng, STAND.lat], heading: 190 }, camera: ['stand', 'drop'] },
+    sheet: () => `<h1>Your Tesla is at the stand</h1>${stepper(2, 'You are on board. The trip starts soon.')}${yourTesla()}${coRider()}
+      ${timeline([['You asked for a ride', '9:14 am'], ['A driver accepted your request', '9:15 am'], ['Your Tesla reached the stand', '9:19 am'], ['You boarded', '9:21 am']])}` },
+
+  { id: 'p-ontheway', who: 'Passenger', label: 'On the way', snap: 'peek', me: ['Nusrat', 'Passenger'], map: { drop: MOHAKHALI, route: [STAND, MOHAKHALI], tesla: { drive: [STAND, MOHAKHALI, 0.22], ms: 10000, follow: true }, zoom: 15.5 },
+    sheet: () => `<h1>On your way</h1>${stepper(3, 'Heading to Mohakhali. Pay the driver in cash when you get off.')}
+      ${group(row('Fare', '<span class="fare">Tk 96.25</span>'), { footer: 'Locked when the trip started. It won’t change.' })}${yourTesla()}` },
+
+  { id: 'p-receipt', who: 'Passenger', label: 'Receipt and past rides', snap: 'full', me: ['Nusrat', 'Passenger'], map: { drop: MOHAKHALI, route: [STAND, MOHAKHALI] },
+    sheet: () => `<h1>Trip complete</h1>
+      ${group(row('Route', '<span class="muted">Banani to Mohakhali</span>') + row('Dropped off', '<span class="muted">27 Sept, 9:33 am</span>') + row('Ride', '<span class="muted">Shared, 1 seat</span>') + row('Driver', '<span class="muted">Jashim Uddin</span>') + row('Car', '<span class="muted">Bullet, DHAKA-METRO-GA-11-1111</span>') + row('<span class="strong">Total</span>', '<span class="fare">Tk 96.25</span>'), { header: 'Receipt', footer: 'Paid in cash to Jashim Uddin.' })}
+      ${group(row('<span class="blue">Done</span>', '', 'data-go="p-where"'))}
+      ${group(row(two('Banani to Mohakhali', '27 Sept, 9:33 am'), '<span class="strong">Tk 96.25</span>') + row(two('Banani to Gulshan 1', '26 Sept, 6:10 pm'), '<span class="muted">Cancelled</span>') + row(two('Banani to Mohakhali', '26 Sept, 8:02 am'), '<span class="muted">Expired</span>'), { header: 'Your past rides' })}` },
+
+  { id: 'p-driver-cancelled', who: 'Passenger', label: 'Driver cancelled, back to waiting', snap: 'half', me: ['Nusrat', 'Passenger'], map: { pin: true, stand: 'search', walk: true, drop: MOHAKHALI, route: [STAND, MOHAKHALI], camera: ['stand'], zoom: 15 },
+    sheet: () => `<h1>Looking for a Tesla</h1>${stepper(0, 'Your driver cancelled, so you are back in the queue. Your 15 minutes start again.')}
+      ${timeline([['You asked for a ride', '9:14 am'], ['A driver accepted your request', '9:15 am'], ['The driver cancelled the ride, back to waiting', '9:17 am']])}
+      ${group(row('<span class="red">Cancel request</span>', '', 'data-go="p-where"'))}` },
+
+  { id: 'p-loading', who: 'Passenger', label: 'Loading', snap: 'half', me: ['Nusrat', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<p class="muted" style="font-size:15px;margin:24px 16px">Loading your rides</p>` },
+
+  { id: 'p-offline', who: 'Passenger', label: 'Can’t reach the server', snap: 'half', me: ['Nusrat', 'Passenger'], map: { camera: 'home' },
+    sheet: () => `<p class="red" style="font-size:13px;margin:24px 16px 12px">Can't reach Seat Ase? right now. Check your connection.</p><div style="padding:0 16px"><button class="pill" data-go="p-where">Try again</button></div>` },
+
+  { id: 'd-add-tesla', who: 'Driver', label: 'Add your Tesla', snap: 'full', me: ['Kabir', 'Driver'], map: { camera: 'home' },
+    sheet: () => `<h1>Add your Tesla</h1><p class="sub">Passengers can only be matched with a registered car.</p>
+      ${group(field('Name', 'Model 3') + field('Plate', '', 'Dhaka Metro Ga 12-3456'), { header: 'Your Tesla' })}
+      <p class="group-header">Passenger seats</p><div class="group" style="padding:8px"><div class="segmented" style="margin:0">${[1, 2, 3, 4, 5, 6].map((n) => `<button aria-checked="false">${n}</button>`).join('')}</div></div>
+      <p class="group-footer">Seats for passengers, not counting you.</p>
+      ${primary('Add my Tesla', 'd-offline')}<p class="error">Enter your number plate</p>` },
+
+  { id: 'd-offline', who: 'Driver', label: 'Offline, pick your area', snap: 'half', me: ['Jashim', 'Driver'], map: { tesla: { at: NEAR_STAND, heading: 0 }, camera: 'home' },
+    sheet: () => `<h1>Bullet</h1><p class="sub">You are offline</p>
+      ${primary('Go online in Banani', 'd-online-empty')}
+      ${group(ZONES.map((z) => row(z, z === 'Banani' ? CHECK : '')).join(''), { header: 'Your area', footer: 'Passengers near this area can see you once you go online.' })}
+      ${group(row('Plate', '<span class="muted">DHAKA-METRO-GA-11-1111</span>') + row('Passenger seats', '<span class="muted">3</span>'))}` },
+
+  { id: 'd-online-empty', who: 'Driver', label: 'Online, no requests', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'quiet', tesla: { at: NEAR_STAND, heading: 330 }, camera: ['stand', 'tesla'], zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group('<div class="empty"><div class="title">No requests in Banani yet</div><div class="muted" style="font-size:15px">New requests show up here on their own. Keep this screen open.</div></div>', { header: 'Requests' })}
+      ${group(row('<span class="red">Go offline</span>', '', 'data-go="d-offline"'))}` },
+
+  { id: 'd-requests', who: 'Driver', label: 'Requests waiting', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'pulse', badge: '3 waiting', tesla: { at: NEAR_STAND, heading: 330 }, camera: ['stand', 'tesla'], zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group(requestCard({ route: 'Banani to Mohakhali', wait: '4 min', detail: 'Shared, 1 seat' }) + requestCard({ route: 'Banani to Gulshan 1', wait: '2 min', seatsCount: 2, detail: 'Shared, 2 seats' }) + requestCard({ route: 'Banani to Mohakhali', wait: 'Just now', detail: 'Shared, 1 seat, Women-only' }), { header: 'Requests' })}
+      ${group(row('<span class="red">Go offline</span>', '', 'data-go="d-offline"'))}` },
+
+  { id: 'd-requests-private', who: 'Driver', label: 'A private request', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'pulse', badge: '1 waiting', tesla: { at: NEAR_STAND, heading: 330 }, camera: ['stand', 'tesla'], zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group(requestCard({ route: 'Banani to Mohakhali', wait: '1 min', seatsCount: 3, detail: 'Private hire, the whole Tesla' }), { header: 'Requests', footer: 'A private ride pays for all 3 seats: Tk 345.' })}` },
+
+  { id: 'd-ride-open', who: 'Driver', label: 'Your ride, heading to the stand', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'pulse', badge: '2 to pick up', approach: [TESLA_START, STAND, -0.18], tesla: { drive: [TESLA_START, STAND, -0.18], ms: 7000 }, camera: ['stand', 'tesla'] },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group(row('Pickup', '<span class="muted">Banani Road 11 police box</span>') + row('Seats', `<span style="display:flex;gap:8px;align-items:center">${seats(3, 3)}<span class="muted">3 of 3</span></span>`), { header: 'Your ride' })}
+      ${group(driverPassenger('Rafiq', 1, 'Gulshan 1', 2, '', '<span class="muted">Up to Tk 155</span>') + driverPassenger('Nusrat', 2, 'Mohakhali', 1, '', '<span class="muted">Up to Tk 96.25</span>'), { header: 'Passengers, in drop off order' })}
+      ${primary('I have arrived at the stand', 'd-arrived')}
+      ${group(row('<span class="red">Cancel this ride</span>', '', 'data-go="d-cancel-confirm"'))}
+      ${group(requestCard({ route: 'Banani to Mohakhali', wait: '3 min', detail: 'Shared, 1 seat, Women-only', fits: false, reasons: ['Only 0 seat(s) left, this request needs 1.', 'This ride has a male passenger.'] }), { header: 'Requests' })}` },
+
+  { id: 'd-cancel-confirm', who: 'Driver', label: 'Cancel ride, tap again', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'pulse', badge: '2 to pick up', approach: [TESLA_START, STAND, -0.18], tesla: { at: [90.4121, 23.7948], heading: 250 }, camera: ['stand', 'tesla'] },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group(driverPassenger('Rafiq', 1, 'Gulshan 1', 2, '') + driverPassenger('Nusrat', 2, 'Mohakhali', 1, ''), { header: 'Passengers, in drop off order' })}
+      ${group(row('<span class="red strong">Tap again to cancel this ride</span>', '', 'data-go="d-online-empty"'), { footer: 'Everyone on this ride goes back to waiting for another driver.' })}` },
+
+  { id: 'd-arrived', who: 'Driver', label: 'At the stand, boarding', snap: 'half', me: ['Jashim', 'Driver'], countdown: 272, map: { stand: 'quiet', tesla: { at: AT_STAND, heading: 200 }, camera: ['stand'], zoom: 16 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are at the stand</p>
+      ${group(`${row(two('Rafiq', '1. Drops at Gulshan 1, 2 seats<br>Up to Tk 155'), '<span class="green strong">On board</span>')}
+        <div class="row"><span class="grow">Nusrat<span class="detail">2. Drops at Mohakhali, 1 seat<br>Up to Tk 96.25</span><span style="display:flex;gap:8px;margin-top:8px"><button class="pill" data-go="d-arrived-noshow">Board</button></span></span></div>`, { header: 'Passengers at the stand', footer: 'You can mark a no-show in <span id="cd">4:32</span>.' })}
+      ${primary('Start trip', 'd-started')}
+      <p class="group-footer" style="margin-top:-12px">Nusrat is not on board and will go back to waiting when you start.</p>
+      ${group(row('<span class="red">Cancel this ride</span>', '', 'data-go="d-cancel-confirm"'))}` },
+
+  { id: 'd-arrived-noshow', who: 'Driver', label: 'At the stand, no-show available', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'quiet', tesla: { at: AT_STAND, heading: 200 }, camera: ['stand'], zoom: 16 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are at the stand</p>
+      ${group(`${row(two('Rafiq', '1. Drops at Gulshan 1, 2 seats<br>Up to Tk 155'), '<span class="green strong">On board</span>')}
+        <div class="row"><span class="grow">Nusrat<span class="detail">2. Drops at Mohakhali, 1 seat<br>Up to Tk 96.25</span><span style="display:flex;gap:8px;margin-top:8px"><button class="pill" data-go="d-started">Board</button><button class="pill red" data-go="d-started">No-show</button></span></span></div>`, { header: 'Passengers at the stand', footer: 'She has had 5 minutes. You can mark her a no-show.' })}
+      ${primary('Start trip', 'd-started')}` },
+
+  { id: 'd-started', who: 'Driver', label: 'Trip started, dropping off', snap: 'half', me: ['Jashim', 'Driver'], map: { drops: [GULSHAN1, MOHAKHALI], route: 'drops', tesla: { drive: [STAND, GULSHAN1, 0.2], ms: 8000, follow: true }, zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">On the trip</p>
+      ${group(driverPassenger('Rafiq', 1, 'Gulshan 1', 2, cash('Collect Tk 155 in cash'), '<button class="pill" data-go="d-last-drop">Drop</button>') + driverPassenger('Nusrat', 2, 'Mohakhali', 1, cash('Collect Tk 96.25 in cash'), '<button class="pill">Drop</button>'), { header: 'Passengers, in drop off order', footer: 'Suggested order, nearest first. Drop people in any order you like.' })}` },
+
+  { id: 'd-last-drop', who: 'Driver', label: 'Last drop', snap: 'half', me: ['Jashim', 'Driver'], map: { drops: [GULSHAN1, MOHAKHALI], dropsDone: 1, route: 'drops', tesla: { drive: [GULSHAN1, MOHAKHALI, -0.2], ms: 8000, follow: true }, zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">On the trip</p>
+      ${group(driverPassenger('Nusrat', 1, 'Mohakhali', 1, cash('Collect Tk 96.25 in cash')), { header: 'Passengers, in drop off order' })}
+      ${primary('Drop Nusrat &amp; complete trip', 'd-complete')}` },
+
+  { id: 'd-complete', who: 'Driver', label: 'Trip complete, history', snap: 'half', me: ['Jashim', 'Driver'], map: { tesla: { at: [MOHAKHALI.lng, MOHAKHALI.lat], heading: 180 }, camera: ['tesla'], zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      ${group(row('<span class="green strong">Trip complete</span>', '<span class="muted">Tk 251.25 collected</span>'), { footer: 'You are now in Mohakhali, where you dropped the last passenger.' })}
+      ${group('<div class="empty"><div class="title">No requests in Mohakhali yet</div><div class="muted" style="font-size:15px">New requests show up here on their own.</div></div>', { header: 'Requests' })}
+      ${group(row(two('Banani', '27 Sept, 9:33 am'), '<span class="green">Completed</span>') + row(two('Banani', '26 Sept, 6:10 pm'), '<span class="muted">Cancelled</span>'), { header: 'Recent rides' })}` },
+
+  { id: 'd-error', who: 'Driver', label: 'Requests failed to load', snap: 'half', me: ['Jashim', 'Driver'], map: { stand: 'quiet', tesla: { at: NEAR_STAND, heading: 330 }, camera: ['stand', 'tesla'], zoom: 15 },
+    sheet: () => `<h1>Bullet</h1><p class="sub green">You are online</p>
+      <p class="group-header">Requests</p><p class="red" style="font-size:13px;margin:4px 16px 12px">Can't reach Seat Ase? right now. Check your connection.</p><div style="padding:0 16px 20px"><button class="pill" data-go="d-requests">Try again</button></div>` },
+];
+
+// ---- Geometry: a curved line, and which way it points ----
+
+function arc(a, b, bend = 0.22, steps = 64) {
+  const mx = (a.lng + b.lng) / 2, my = (a.lat + b.lat) / 2, dx = b.lng - a.lng, dy = b.lat - a.lat;
+  const cx = mx - dy * bend, cy = my + dx * bend, pts = [];
+  for (let i = 0; i <= steps; i++) { const t = i / steps, u = 1 - t; pts.push([u * u * a.lng + 2 * u * t * cx + t * t * b.lng, u * u * a.lat + 2 * u * t * cy + t * t * b.lat]); }
+  return pts;
+}
+const bearing = (p, q) => (Math.atan2(q[0] - p[0], q[1] - p[1]) * 180) / Math.PI;
+
+// ---- The map style: OpenFreeMap Positron, recoloured to sit under the app's greys ----
+
+async function loadStyle() {
+  const style = await (await fetch('https://tiles.openfreemap.org/styles/positron')).json();
+  const drop = /shield|boundary|aeroway|railway_.*dash|label_country|label_state|highway-name-path|landcover_ice|landcover_glacier/;
+  style.layers = style.layers.filter((l) => !drop.test(l.id));
+  const paint = (id, props) => { const l = style.layers.find((x) => x.id === id); if (l) l.paint = { ...(l.paint || {}), ...props }; };
+  paint('background', { 'background-color': '#f2f2f4' });
+  paint('water', { 'fill-color': '#cfe0ef' });
+  paint('park', { 'fill-color': '#dfeadb', 'fill-opacity': 1 });
+  paint('landcover_wood', { 'fill-color': '#dfeadb', 'fill-opacity': 0.8 });
+  paint('landuse_residential', { 'fill-color': '#ececef', 'fill-opacity': 1 });
+  paint('building', { 'fill-color': '#e3e3e8', 'fill-outline-color': '#dadadf' });
+  paint('waterway', { 'line-color': '#cfe0ef' });
+  for (const l of style.layers) {
+    if (l.type === 'line' && /highway|road|tunnel/.test(l.id)) l.paint = { ...(l.paint || {}), 'line-color': /casing/.test(l.id) ? '#dcdce1' : '#ffffff' };
+    if (l.type === 'symbol') l.paint = { ...(l.paint || {}), 'text-color': /label_city|label_town/.test(l.id) ? '#3c3c43' : '#8e8e93', 'text-halo-color': 'rgba(255,255,255,0.9)', 'text-halo-width': 1.4 };
+  }
+  return style;
+}
+
+// ---- Drawing one scene on the map ----
+
+let map, markers = {}, anims = [], index = 0, countdownTimer = null;
+
+function el(cls, inner = '') { const d = document.createElement('div'); d.className = cls; d.innerHTML = inner; return d; }
+function put(key, element, p) {
+  const wrap = document.createElement('div');
+  element.classList.add('drop-in');
+  wrap.appendChild(element);
+  markers[key] = new maplibregl.Marker({ element: wrap }).setLngLat(Array.isArray(p) ? p : [p.lng, p.lat]).addTo(map);
+  return element;
+}
+function setLine(id, coords) { map.getSource(id)?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }); }
+function clearMap() {
+  anims.forEach(cancelAnimationFrame); anims = [];
+  Object.values(markers).forEach((m) => m.remove()); markers = {};
+  ['walk', 'route', 'approach'].forEach((id) => setLine(id, []));
+}
+
+function drawProgressively(id, path, ms) {
+  if (REDUCED || !ms) { setLine(id, path); return; }
+  const start = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / ms), e = 1 - Math.pow(1 - t, 3);
+    setLine(id, path.slice(0, Math.max(2, Math.round(e * path.length))));
+    if (t < 1) anims.push(requestAnimationFrame(tick));
+  };
+  anims.push(requestAnimationFrame(tick));
+}
+
+function drive(path, ms, follow) {
+  const node = put('tesla', el('m-tesla', ARROW), path[0]);
+  const arrow = node.querySelector('svg');
+  arrow.style.transform = `rotate(${bearing(path[0], path[1])}deg)`;
+  if (REDUCED) { markers.tesla.setLngLat(path[path.length - 1]); return; }
+  let start = performance.now();
+  const tick = (now) => {
+    let t = (now - start) / ms;
+    if (t > 1.25) { start = now; t = 0; }
+    t = Math.min(1, t);
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const f = e * (path.length - 1), i = Math.min(path.length - 2, Math.floor(f)), k = f - i;
+    const p = [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k];
+    markers.tesla.setLngLat(p);
+    arrow.style.transform = `rotate(${bearing(path[i], path[i + 1])}deg)`;
+    if (follow) map.easeTo({ center: p, duration: 0 });
+    anims.push(requestAnimationFrame(tick));
+  };
+  anims.push(requestAnimationFrame(tick));
+}
+
+function drawScene(scene) {
+  if (!map || !map.getSource('route')) return;
+  clearMap();
+  const m = scene.map, pts = [];
+  if (m.walk) setLine('walk', [[PICKUP.lng, PICKUP.lat], [STAND.lng, STAND.lat]]);
+  if (m.approach) setLine('approach', arc(...m.approach));
+  let routePath = null;
+  if (m.route === 'drops') routePath = [...arc(STAND, GULSHAN1, 0.2), ...arc(GULSHAN1, MOHAKHALI, -0.2).slice(1)];
+  else if (m.route) routePath = arc(m.route[0], m.route[1]);
+  if (routePath) { m.draw ? drawProgressively('route', routePath, 900) : setLine('route', routePath); pts.push(...routePath); }
+  if (m.pin) { put('pin', el('m-pin'), PICKUP); pts.push([PICKUP.lng, PICKUP.lat]); }
+  if (m.stand) {
+    put('stand', el(`m-stand ${m.stand === 'search' ? 'search' : m.stand === 'quiet' ? 'quiet' : ''}`, `${m.badge ? `<span class="m-badge">${m.badge}</span>` : ''}<span class="ring"></span><span class="ring r2"></span><span class="core"></span>`), STAND);
+    pts.push([STAND.lng, STAND.lat]);
+  }
+  if (m.drop) { put('drop', el('m-drop'), m.drop); pts.push([m.drop.lng, m.drop.lat]); }
+  if (m.drops) m.drops.forEach((d, i) => { put(`drop${i}`, el(`m-drop numbered ${i < (m.dropsDone || 0) ? 'done' : ''}`, String(i + 1)), d); pts.push([d.lng, d.lat]); });
+  if (m.tesla?.drive) { const path = arc(...m.tesla.drive); drive(path, m.tesla.ms, m.tesla.follow); pts.push(path[0], path[path.length - 1]); }
+  if (m.tesla?.at) { const n = put('tesla', el('m-tesla', ARROW), m.tesla.at); n.querySelector('svg').style.transform = `rotate(${m.tesla.heading}deg)`; pts.push(m.tesla.at); }
+
+  const dur = REDUCED ? 0 : 1100;
+  if (m.camera === 'home') { map.flyTo({ ...HOME, duration: dur }); return; }
+  if (m.tesla?.follow) { map.flyTo({ center: arc(...m.tesla.drive)[0], zoom: m.zoom ?? 15.5, duration: dur }); return; }
+  let focus = pts;
+  if (Array.isArray(m.camera)) {
+    focus = m.camera.flatMap((k) => k === 'pin' ? [[PICKUP.lng, PICKUP.lat]] : k === 'stand' ? [[STAND.lng, STAND.lat]] : k === 'drop' ? [[m.drop.lng, m.drop.lat]] : k === 'tesla' ? (m.tesla.drive ? [arc(...m.tesla.drive)[0]] : [m.tesla.at]) : []);
+  }
+  if (focus.length === 0) { map.flyTo({ ...HOME, duration: dur }); return; }
+  if (focus.length === 1) { map.flyTo({ center: focus[0], zoom: m.zoom ?? 15.5, duration: dur }); return; }
+  const b = focus.reduce((acc, p) => acc.extend(p), new maplibregl.LngLatBounds(focus[0], focus[0]));
+  map.fitBounds(b, { padding: { top: 90, bottom: 50, left: 50, right: 50 }, maxZoom: m.zoom ?? 15.5, duration: dur });
+}
+
+// ---- Showing a scene: sheet, map, who is logged in, the switcher ----
+
+function show(i) {
+  index = (i + SCENES.length) % SCENES.length;
+  const scene = SCENES[index];
+  const body = document.getElementById('body');
+  body.innerHTML = `<div class="enter">${scene.sheet()}</div>`;
+  body.scrollTop = 0;
+  document.getElementById('cur-who').textContent = scene.who;
+  document.getElementById('cur-label').textContent = scene.label;
+  const me = document.getElementById('me');
+  me.hidden = !scene.me;
+  if (scene.me) { document.getElementById('me-name').textContent = scene.me[0]; document.getElementById('me-role').textContent = scene.me[1]; }
+  snap(scene.snap);
+  drawScene(scene);
+  clearInterval(countdownTimer);
+  if (scene.countdown) {
+    let left = scene.countdown;
+    countdownTimer = setInterval(() => { left = Math.max(0, left - 1); const cd = document.getElementById('cd'); if (cd) cd.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; }, 1000);
+  }
+  try { history.replaceState(null, '', `#${scene.id}`); } catch {}
+}
+
+document.getElementById('body').addEventListener('click', (e) => {
+  const opt = e.target.closest('[data-opt]');
+  if (opt) {
+    const [k, v] = opt.dataset.opt.split(':');
+    if (k === 'type') { opts.type = v; if (v === 'PRIVATE') opts.women = false; }
+    if (k === 'seats') opts.seats = Number(v);
+    if (k === 'women') opts.women = !opts.women;
+    document.getElementById('body').innerHTML = SCENES[index].sheet();
+    return;
+  }
+  const go = e.target.closest('[data-go]');
+  if (go && !go.disabled) show(SCENES.findIndex((s) => s.id === go.dataset.go));
+});
+document.getElementById('prev').addEventListener('click', () => show(index - 1));
+document.getElementById('next').addEventListener('click', () => show(index + 1));
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight') show(index + 1);
+  if (e.key === 'ArrowLeft') show(index - 1);
+  if (e.key === 'Escape') closeMenu();
+});
+
+// ---- The list of every state, grouped by who is looking ----
+
+const menu = document.getElementById('menu');
+function closeMenu() { menu.classList.remove('open'); }
+document.getElementById('current').addEventListener('click', () => {
+  const byWho = (who) => SCENES.map((s, i) => [s, i]).filter(([s]) => s.who === who).map(([s, i]) => `<button class="row" data-scene="${i}"><span class="grow">${s.label}</span>${i === index ? CHECK : ''}</button>`).join('');
+  document.getElementById('menu-panel').innerHTML = `${group(byWho('Passenger'), { header: 'Passenger' })}${group(byWho('Driver'), { header: 'Driver' })}`;
+  menu.classList.add('open');
+});
+menu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-scene]');
+  if (b) show(Number(b.dataset.scene));
+  if (b || e.target === menu) closeMenu();
+});
+
+// ---- The draggable sheet (phones only) ----
+
+const sheet = document.getElementById('sheet');
+const SNAPS = { peek: 0.3, half: 0.52, full: 0.94 };
+let current = 'half';
+const sheetVisible = () => innerHeight * SNAPS[current];
+function sheetPadding() { return innerWidth >= 768 ? { top: 56, bottom: 0, left: 380 + 32, right: 0 } : { top: 48, bottom: sheetVisible(), left: 0, right: 0 }; }
+function snap(name) {
+  current = name;
+  if (innerWidth < 768) {
+    sheet.style.setProperty('--visible', `${SNAPS[name] * 100}dvh`);
+    document.documentElement.style.setProperty('--attrib-offset', name === 'full' ? '0px' : `${SNAPS[name] * innerHeight}px`);
+  }
+  if (map) map.setPadding(sheetPadding());
+}
+(function drag() {
+  let startY = 0, startVisible = 0, dragging = false;
+  document.getElementById('grabber').addEventListener('pointerdown', (e) => { if (innerWidth >= 768) return; dragging = true; startY = e.clientY; startVisible = sheetVisible(); sheet.classList.add('dragging'); sheet.setPointerCapture(e.pointerId); });
+  sheet.addEventListener('pointermove', (e) => { if (!dragging) return; sheet.style.setProperty('--visible', `${Math.min(innerHeight * 0.94, Math.max(innerHeight * 0.2, startVisible + (startY - e.clientY)))}px`); });
+  sheet.addEventListener('pointerup', (e) => {
+    if (!dragging) return; dragging = false; sheet.classList.remove('dragging');
+    const v = startVisible + (startY - e.clientY);
+    snap(Object.entries(SNAPS).reduce((b, [k, f]) => (Math.abs(f * innerHeight - v) < Math.abs(SNAPS[b] * innerHeight - v) ? k : b), 'half'));
+    drawScene(SCENES[index]);
+  });
+})();
+
+// ---- Start ----
+
+(async function start() {
+  const fromHash = SCENES.findIndex((s) => `#${s.id}` === location.hash);
+  map = new maplibregl.Map({ container: 'map', style: await loadStyle(), ...HOME, attributionControl: { compact: true }, pitchWithRotate: false, dragRotate: false });
+  map.touchZoomRotate.disableRotation();
+  map.on('load', () => {
+    const empty = { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } };
+    ['walk', 'route', 'approach'].forEach((id) => map.addSource(id, { type: 'geojson', data: empty }));
+    const round = { 'line-cap': 'round', 'line-join': 'round' };
+    map.addLayer({ id: 'approach', type: 'line', source: 'approach', layout: round, paint: { 'line-color': '#8e8e93', 'line-width': 4, 'line-dasharray': [1.5, 1.5] } });
+    map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: round, paint: { 'line-color': '#0a84ff', 'line-width': 4, 'line-dasharray': [0, 2] } });
+    map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: round, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
+    map.addLayer({ id: 'route', type: 'line', source: 'route', layout: round, paint: { 'line-color': '#000000', 'line-width': 5 } });
+    show(fromHash >= 0 ? fromHash : 0);
+  });
+})();
+</script>
+</body>
+</html>
