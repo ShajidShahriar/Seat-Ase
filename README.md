@@ -3,7 +3,6 @@
 **a Dhaka Tesla Pool MVP.** Find a seat. Find a ride. Stay strangers.
 
 A ride-pooling app for Dhaka's "Teslas": three-wheeled, battery-powered, entirely un-Elon-affiliated auto-rickshaws.
-This repository is my take-home submission for the RoBenDevs SWE Intern role.
 
 -  **Live App:** https://seat-ase-web.vercel.app
 -  **System Design Document:** [Google Docs](https://docs.google.com/document/d/1QtQkNdZ9xmjYGuJcq-WdbvNtZHhwGTtPMNOFQozNqPI/edit?tab=t.0) (or view the [PDF in this repository](Seat%20Ase_%20System%20Design%2C%20Final%20Version%20(v1.0.0).pdf))
@@ -215,7 +214,7 @@ A few schema choices worth calling out: `rides.capacity` is a copy of `vehicles.
 | Backend | Express 5 | I know it well enough to explain every line, and a separate Express app keeps a clean split between "what the screen shows" and "what the rules are." |
 | Database | PostgreSQL 16 | This app is really about relationships and safe counting: a request belongs to a ride, a ride belongs to a car, seats can never exceed capacity. Postgres gives me foreign keys, `CHECK` constraints, partial unique indexes ("a driver can only have one active ride"), and row locks for free. A document store would push all of that enforcement into application code instead of the database. |
 | ORM / migrations | Drizzle ORM + drizzle-kit | Queries read close enough to SQL that I can explain exactly what hits the database, and `drizzle-kit` generates plain `.sql` migration files that are easy to read directly rather than hidden behind a black box. |
-| Auth | Our own bcrypt + JWT in an httpOnly cookie | The rules live in Express, not in Next.js, so an auth library built for Next.js would mean splitting login logic across two apps. Our own implementation is short enough that I can walk through every line of it in an interview. |
+| Auth | Our own bcrypt + JWT in an httpOnly cookie | The rules live in Express, not in Next.js, so an auth library built for Next.js would mean splitting login logic across two apps. The implementation stays small and easy to follow. |
 | Validation | Zod, in a package shared by both apps | One schema, two uses: the form gives instant feedback, and the API rejects bad data the same way either time. |
 | Live updates | Server-Sent Events, with polling as a fallback | Updates only need to flow server → browser. SSE is built into every browser, reconnects on its own, and needs no extra library or paid service. |
 | Map | MapLibre GL JS with OpenFreeMap tiles | Free, no API key, no rate limit, and fully restylable so the map can match the rest of the app instead of sitting in its own card. |
@@ -262,7 +261,7 @@ All of these are documented with placeholder values in `.env.example`. Copy it t
 | `DATABASE_URL` | Postgres connection string | must start with `postgres://` |
 | `JWT_SECRET` | signs login session tokens | rotate freely; production requires at least 32 characters and refuses the example value |
 | `NID_PEPPER` | HMAC key for the NID fingerprint (enforces one NID, one account) | set once and never change, since old fingerprints can't be recomputed with a new key; 32+ characters in production |
-| `DEMO_KEY` | header key required by the `/dev` demo routes (Seat Race) | 32+ characters if `DEMO_MODE=true` in production; not published in this README — submitted with this assignment, in the Google Form's "Additional Supporting Link" field |
+| `DEMO_KEY` | header key required by the `/dev` demo routes (Seat Race) | 32+ characters if `DEMO_MODE=true` in production; kept private and not published in this README |
 | `DEMO_MODE` | shows the OTP code on screen instead of sending an SMS | `true` locally and in the demo deployment; would be `false` with a real SMS provider |
 | `COOKIE_SECURE` | marks the session cookie HTTPS-only | `false` on localhost, `true` in production |
 | `SSE_HEARTBEAT_MS` | how often a live-update heartbeat is sent | default 25000 |
@@ -322,7 +321,7 @@ Everyone above is pre-verified (phone and NID). Fixed fares these accounts shoul
 - Nusrat pooled: 9625 · Rafiq pooled: 7750 · Nusrat riding alone: 11500 · Nusrat hiring the whole Tesla privately: 34500
 - Banani ↔ Mohakhali: 3.0 km · Banani ↔ Gulshan 1: 2.0 km · Mohakhali ↔ Gulshan 1: 2.5 km · Banani ↔ Tejgaon: 4.0 km
 
-If more than one person is testing at the same time, please don't log in as the same demo account simultaneously. The app enforces one active booking per passenger and one active ride per car, so two evaluators sharing Nusrat's account will collide with each other. Signing up a fresh account works fine alongside the seeded cast.
+If more than one person is testing at the same time, please don't log in as the same demo account simultaneously. The app enforces one active booking per passenger and one active ride per car, so two people sharing Nusrat's account will collide with each other. Signing up a fresh account works fine alongside the seeded cast.
 
 ## 11. Deployment
 
@@ -330,7 +329,7 @@ If more than one person is testing at the same time, please don't log in as the 
 - **API:** hosted on Render, reached only through the web app's same-origin `/api` rewrite; nobody needs the direct API URL
 - **Database:** Neon (Postgres 16)
 
-The API runs on Render's free tier, which sleeps after about 15 minutes with no traffic. A free uptime monitor pings it every 5 minutes to keep it mostly awake during evaluation. If the very first request does hit a cold start, the app shows a "waking up" message and retries on its own rather than showing an error, so there's no need to refresh manually, though it takes 30 to 45 seconds the first time.
+The API runs on Render's free tier, which sleeps after about 15 minutes with no traffic. A free uptime monitor pings it every 5 minutes to keep it mostly awake. If the very first request does hit a cold start, the app shows a "waking up" message and retries on its own rather than showing an error, so there's no need to refresh manually, though it takes 30 to 45 seconds the first time.
 
 ## 12. API overview
 
